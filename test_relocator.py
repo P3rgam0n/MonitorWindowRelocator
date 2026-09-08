@@ -5,10 +5,9 @@ i18n translations, config persistence, CLI arguments, and HotkeyManager.
 """
 
 import os
-import sys
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import main
 

@@ -73,7 +73,7 @@ Gather off-screen windows instantly via command line or background script:
 | :--- | :--- |
 | `--gather` | Scans and moves all off-screen windows to the primary display and exits. |
 | `--to-cursor` | Moves the currently active foreground window to the mouse display and exits. |
-| `--mon <1\|2\|3>` | Moves the active foreground window to Monitor 1, 2, or 3 and exits. |
+| `--mon <N>` | Moves the active foreground window to Monitor N (e.g. 1, 2, 3...) and exits. |
 | `--lang <en\|pl>` | Forces startup in the specified language (`en` for English, `pl` for Polish). |
 | `--version`, `-v` | Displays version information. |
 | `--help`, `-h` | Displays help message and exits. |
@@ -103,7 +103,7 @@ The interface automatically detects your Windows system display language (**Engl
 ```
 MonitorWindowRelocator/
 ├── main.py                      # Complete application (Core, Win32 API, Hotkeys, i18n, GUI & CLI)
-├── test_relocator.py            # Automated unit & integration test suite (34 tests)
+├── test_relocator.py            # Automated unit & integration test suite (39 tests)
 ├── Run_App.bat                  # Background launcher script for GUI
 ├── Gather_Offscreen_Windows.bat # Instant CLI script to gather hidden windows
 ├── LICENSE                      # MIT Open Source License

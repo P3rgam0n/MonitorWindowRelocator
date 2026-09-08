@@ -660,7 +660,7 @@ def get_desktop_windows():
         desk = user32.OpenInputDesktop(0, False, DESKTOP_ENUMERATE | DESKTOP_SWITCHDESKTOP)
         if desk:
             DESKENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-            def desk_cb(h, l):
+            def desk_cb(h, lparam):
                 inspect_hwnd(h)
                 return 1
             user32.EnumDesktopWindows(desk, DESKENUMPROC(desk_cb), 0)
@@ -670,7 +670,7 @@ def get_desktop_windows():
 
     # Strategy 2: Standard EnumWindows
     WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-    def enum_cb(h, l):
+    def enum_cb(h, lparam):
         inspect_hwnd(h)
         return 1
     user32.EnumWindows(WNDENUMPROC(enum_cb), 0)
@@ -1290,7 +1290,7 @@ def main():
 
     # Launch GUI Application
     root = tk.Tk()
-    app = WindowRelocatorApp(root)
+    WindowRelocatorApp(root)
     root.mainloop()
 
 
