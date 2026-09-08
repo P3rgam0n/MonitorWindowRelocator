@@ -19,6 +19,18 @@ import time
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+# Configure UTF-8 encoding for console stdout/stderr on Windows
+if sys.stdout is not None and hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+if sys.stderr is not None and hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 # ============================================================================
 # Section 1: Win32 API & System Initialization
 # ============================================================================
@@ -37,6 +49,11 @@ except Exception:
 user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
 
+try:
+    dwmapi = ctypes.windll.dwmapi
+except Exception:
+    dwmapi = None
+
 # Win32 Constants
 MONITOR_DEFAULTTONEAREST = 2
 SW_RESTORE = 9
@@ -48,6 +65,8 @@ WS_EX_TOOLWINDOW = 0x00000080
 WS_EX_APPWINDOW = 0x00040000
 GA_ROOT = 2
 DESKTOP_ENUMERATE = 0x0100
+DESKTOP_SWITCHDESKTOP = 0x0040
+DWMWA_CLOAKED = 14
 
 MOD_ALT = 0x0001
 MOD_CONTROL = 0x0002
@@ -59,6 +78,13 @@ VK_G = 0x47
 VK_1 = 0x31
 VK_2 = 0x32
 VK_3 = 0x33
+
+class POINT(ctypes.Structure):
+    """Win32 POINT structure."""
+    _fields_ = [
+        ('x', ctypes.c_long),
+        ('y', ctypes.c_long)
+    ]
 
 class RECT(ctypes.Structure):
     """Win32 RECT structure with width and height helper properties."""
@@ -76,6 +102,17 @@ class RECT(ctypes.Structure):
     @property
     def height(self):
         return self.bottom - self.top
+
+class WINDOWPLACEMENT(ctypes.Structure):
+    """Win32 WINDOWPLACEMENT structure for retrieving normal (restored) window geometry."""
+    _fields_ = [
+        ('length', ctypes.c_uint),
+        ('flags', ctypes.c_uint),
+        ('showCmd', ctypes.c_uint),
+        ('ptMinPosition', POINT),
+        ('ptMaxPosition', POINT),
+        ('rcNormalPosition', RECT)
+    ]
 
 class MONITORINFOEX(ctypes.Structure):
     """Win32 MONITORINFOEXW structure."""
@@ -104,6 +141,8 @@ user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
 user32.GetWindowTextW.restype = ctypes.c_int
 user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT)]
 user32.GetWindowRect.restype = wintypes.BOOL
+user32.GetWindowPlacement.argtypes = [wintypes.HWND, ctypes.POINTER(WINDOWPLACEMENT)]
+user32.GetWindowPlacement.restype = wintypes.BOOL
 user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
 user32.ShowWindow.restype = wintypes.BOOL
 user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
@@ -116,6 +155,8 @@ user32.GetAncestor.argtypes = [wintypes.HWND, ctypes.c_uint]
 user32.GetAncestor.restype = wintypes.HWND
 user32.GetMonitorInfoW.argtypes = [wintypes.HMONITOR, ctypes.POINTER(MONITORINFOEX)]
 user32.GetMonitorInfoW.restype = wintypes.BOOL
+user32.MonitorFromPoint.argtypes = [wintypes.POINT, ctypes.c_uint]
+user32.MonitorFromPoint.restype = wintypes.HMONITOR
 user32.EnumDisplayMonitors.argtypes = [wintypes.HDC, ctypes.c_void_p, ctypes.c_void_p, wintypes.LPARAM]
 user32.EnumDisplayMonitors.restype = wintypes.BOOL
 user32.EnumWindows.argtypes = [ctypes.c_void_p, wintypes.LPARAM]
@@ -125,6 +166,34 @@ user32.RegisterHotKey.restype = wintypes.BOOL
 user32.UnregisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int]
 user32.UnregisterHotKey.restype = wintypes.BOOL
 
+user32.OpenInputDesktop.argtypes = [ctypes.c_uint, wintypes.BOOL, ctypes.c_uint]
+user32.OpenInputDesktop.restype = wintypes.HANDLE
+user32.CloseDesktop.argtypes = [wintypes.HANDLE]
+user32.CloseDesktop.restype = wintypes.BOOL
+user32.SetThreadDesktop.argtypes = [wintypes.HANDLE]
+user32.SetThreadDesktop.restype = wintypes.BOOL
+user32.EnumDesktopWindows.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.LPARAM]
+user32.EnumDesktopWindows.restype = wintypes.BOOL
+
+user32.PeekMessageW.argtypes = [ctypes.POINTER(wintypes.MSG), wintypes.HWND, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint]
+user32.PeekMessageW.restype = wintypes.BOOL
+user32.TranslateMessage.argtypes = [ctypes.POINTER(wintypes.MSG)]
+user32.TranslateMessage.restype = wintypes.BOOL
+user32.DispatchMessageW.argtypes = [ctypes.POINTER(wintypes.MSG)]
+user32.DispatchMessageW.restype = ctypes.c_ssize_t
+user32.GetSystemMetrics.argtypes = [ctypes.c_int]
+user32.GetSystemMetrics.restype = ctypes.c_int
+
+kernel32.GetUserDefaultUILanguage.argtypes = []
+kernel32.GetUserDefaultUILanguage.restype = wintypes.USHORT
+
+if dwmapi:
+    try:
+        dwmapi.DwmGetWindowAttribute.argtypes = [wintypes.HWND, ctypes.c_ulong, ctypes.c_void_p, ctypes.c_ulong]
+        dwmapi.DwmGetWindowAttribute.restype = ctypes.c_long
+    except Exception:
+        pass
+
 if hasattr(user32, 'GetWindowLongPtrW'):
     user32.GetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
     user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
@@ -133,6 +202,18 @@ else:
     user32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
     user32.GetWindowLongW.restype = ctypes.c_long
     _get_window_long = user32.GetWindowLongW
+
+
+def ensure_input_desktop():
+    """Attaches the calling thread to the interactive input desktop if accessible."""
+    try:
+        # 0x01FF = DESKTOP_ALL_PERMISSIONS
+        desk = user32.OpenInputDesktop(0, False, 0x01FF)
+        if desk:
+            user32.SetThreadDesktop(desk)
+            user32.CloseDesktop(desk)
+    except Exception:
+        pass
 
 
 # ============================================================================
@@ -197,6 +278,9 @@ TRANSLATIONS = {
         "menu_settings": "Settings",
         "menu_language": "Language",
         "lbl_language": "Language:",
+        "tag_minimized": " (Minimized)",
+        "tag_maximized": " (Maximized)",
+        "btn_mon_n": "Monitor {index}",
 
         # CLI Output
         "cli_gathered": "Gathered {count} hidden window(s) to primary screen.",
@@ -260,6 +344,9 @@ TRANSLATIONS = {
         "menu_settings": "Ustawienia",
         "menu_language": "Język",
         "lbl_language": "Język:",
+        "tag_minimized": " (Zminimalizowane)",
+        "tag_maximized": " (Zmaksymalizowane)",
+        "btn_mon_n": "Monitor {index}",
 
         # CLI Output
         "cli_gathered": "Ściągnięto {count} niewidocznych okien na ekran główny.",
@@ -373,9 +460,9 @@ def get_monitors():
                 'work_height': info.rcWork.bottom - info.rcWork.top,
                 'primary': bool(info.dwFlags & 1)
             })
-        return True
+        return 1
 
-    MONITORENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HMONITOR, wintypes.HDC, ctypes.POINTER(RECT), wintypes.LPARAM)
+    MONITORENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HMONITOR, wintypes.HDC, ctypes.POINTER(RECT), wintypes.LPARAM)
     user32.EnumDisplayMonitors(None, None, MONITORENUMPROC(callback), 0)
 
     # Fallback to primary screen metrics if EnumDisplayMonitors returns empty
@@ -393,8 +480,8 @@ def get_monitors():
                 'primary': True
             })
 
-    # Sort monitors left-to-right by X position
-    monitors.sort(key=lambda m: m['rect'][0])
+    # Sort monitors spatially: left-to-right, then top-to-bottom
+    monitors.sort(key=lambda m: (m['rect'][0], m['rect'][1]))
     return monitors
 
 
@@ -414,6 +501,17 @@ def get_cursor_monitor_index(monitors):
     pt = wintypes.POINT()
     user32.GetCursorPos(ctypes.byref(pt))
 
+    # Fast path: use Win32 MonitorFromPoint handle matching
+    try:
+        h_mon = user32.MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST)
+        if h_mon:
+            for idx, mon in enumerate(monitors):
+                if mon.get('handle') == h_mon:
+                    return idx, mon
+    except Exception:
+        pass
+
+    # Bounding rect check
     for idx, mon in enumerate(monitors):
         l, t_pos, r, b = mon['rect']
         if l <= pt.x < r and t_pos <= pt.y < b:
@@ -436,7 +534,7 @@ def get_cursor_monitor_index(monitors):
 
 def is_rect_on_any_monitor(rect, monitors):
     """Checks if a window rect is visibly placed on at least one currently active monitor."""
-    if not monitors:
+    if not monitors or not rect:
         return False
 
     l, t_pos, r, b = rect
@@ -472,12 +570,15 @@ def is_rect_on_any_monitor(rect, monitors):
 
 def get_desktop_windows():
     """Lists all open titled application windows across desktop window stations."""
+    ensure_input_desktop()
     windows = []
     seen_hwnds = set()
 
     def inspect_hwnd(hwnd):
         if not hwnd or hwnd in seen_hwnds:
             return
+        seen_hwnds.add(hwnd)
+
         if not user32.IsWindowVisible(hwnd):
             return
 
@@ -496,70 +597,103 @@ def get_desktop_windows():
         ignored_titles = (
             "Program Manager",
             "Settings",
+            "Ustawienia",
             "NVIDIA GeForce Overlay",
             "Windows Input Experience",
-            "Środowisko wprowadzania danych w systemie Windows"
+            "Środowisko wprowadzania danych w systemie Windows",
+            "Host środowiska powłoki systemu Windows",
+            "Windows Shell Experience Host",
+            "Microsoft Text Input Application"
         )
         if not title or title in ignored_titles:
             return
+
+        # Filter out cloaked windows (suspended background UWP / shell apps)
+        if dwmapi:
+            try:
+                cloaked = ctypes.c_int(0)
+                if dwmapi.DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, ctypes.byref(cloaked), ctypes.sizeof(cloaked)) == 0:
+                    if cloaked.value != 0:
+                        return
+            except Exception:
+                pass
 
         ex_style = _get_window_long(hwnd, GWL_EXSTYLE)
         if (ex_style & WS_EX_TOOLWINDOW) and not (ex_style & WS_EX_APPWINDOW):
             return
 
+        is_min = bool(user32.IsIconic(hwnd))
+        is_max = bool(user32.IsZoomed(hwnd))
+
         rect = RECT()
-        if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
-            return
+        if is_min:
+            # Minimized windows report (-32000, -32000) via GetWindowRect.
+            # Use GetWindowPlacement to retrieve true restored coordinates.
+            wp = WINDOWPLACEMENT()
+            wp.length = ctypes.sizeof(WINDOWPLACEMENT)
+            if user32.GetWindowPlacement(hwnd, ctypes.byref(wp)):
+                rect = wp.rcNormalPosition
+            else:
+                if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+                    return
+        else:
+            if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+                return
 
         w = rect.right - rect.left
         h = rect.bottom - rect.top
         if w <= 20 or h <= 20:
             return
 
-        seen_hwnds.add(hwnd)
         windows.append({
             'hwnd': hwnd,
             'title': title,
             'rect': (rect.left, rect.top, rect.right, rect.bottom),
             'width': w,
             'height': h,
-            'is_minimized': bool(user32.IsIconic(hwnd)),
-            'is_maximized': bool(user32.IsZoomed(hwnd))
+            'is_minimized': is_min,
+            'is_maximized': is_max
         })
 
-    # Primary strategy: OpenInputDesktop for terminal/session support
+    # Strategy 1: OpenInputDesktop + EnumDesktopWindows
     try:
-        desk = user32.OpenInputDesktop(0, False, DESKTOP_ENUMERATE)
+        desk = user32.OpenInputDesktop(0, False, DESKTOP_ENUMERATE | DESKTOP_SWITCHDESKTOP)
         if desk:
-            ENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p)
+            DESKENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
             def desk_cb(h, l):
                 inspect_hwnd(h)
                 return 1
-            user32.EnumDesktopWindows(desk, ENUMPROC(desk_cb), 0)
+            user32.EnumDesktopWindows(desk, DESKENUMPROC(desk_cb), 0)
             user32.CloseDesktop(desk)
     except Exception:
         pass
 
-    # Secondary strategy: Standard EnumWindows
-    ENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p)
+    # Strategy 2: Standard EnumWindows
+    WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
     def enum_cb(h, l):
         inspect_hwnd(h)
         return 1
-    user32.EnumWindows(ENUMPROC(enum_cb), 0)
+    user32.EnumWindows(WNDENUMPROC(enum_cb), 0)
 
     return windows
 
 
 def get_active_window():
     """Gets current foreground active window info."""
+    ensure_input_desktop()
     hwnd = user32.GetForegroundWindow()
     if not hwnd or not user32.IsWindow(hwnd):
         return None
 
     length = user32.GetWindowTextLengthW(hwnd)
+    if length == 0:
+        return None
+
     buf = ctypes.create_unicode_buffer(length + 1)
     user32.GetWindowTextW(hwnd, buf, length + 1)
     title = buf.value.strip()
+    if not title or title == "Program Manager":
+        return None
 
     rect = RECT()
     user32.GetWindowRect(hwnd, ctypes.byref(rect))
@@ -577,6 +711,7 @@ def get_active_window():
 
 def move_window_to_monitor(hwnd, target_monitor, force_restore_maximize=True):
     """Moves a specified window handle (hwnd) to the target_monitor work area."""
+    ensure_input_desktop()
     if not hwnd or not user32.IsWindow(hwnd) or not target_monitor:
         return False
 
@@ -597,13 +732,13 @@ def move_window_to_monitor(hwnd, target_monitor, force_restore_maximize=True):
     target_w = max(100, target_monitor['work_width'])
     target_h = max(100, target_monitor['work_height'])
 
-    # Scale window down if larger than target work area
-    new_w = min(win_w, int(target_w * 0.95))
-    new_h = min(win_h, int(target_h * 0.95))
-    if new_w < 400:
+    # Sizing: preserve natural window size, clamp only if exceeding target monitor
+    if win_w <= 50 or win_h <= 50:
         new_w = min(800, target_w)
-    if new_h < 300:
         new_h = min(600, target_h)
+    else:
+        new_w = min(win_w, int(target_w * 0.95))
+        new_h = min(win_h, int(target_h * 0.95))
 
     # Center window inside target work area
     new_x = wl + max(0, (target_w - new_w) // 2)
@@ -638,7 +773,7 @@ def move_active_to_cursor():
 
 
 def move_active_to_monitor_index(monitor_index_1based):
-    """Moves active window to Monitor 1, 2, or 3 (1-based index)."""
+    """Moves active window to Monitor by 1-based index."""
     monitors = get_monitors()
     if not monitors:
         return False
@@ -655,6 +790,7 @@ def move_active_to_monitor_index(monitor_index_1based):
 
 def gather_offscreen_windows():
     """Scans all windows and moves off-screen or stranded windows to the Primary Monitor."""
+    ensure_input_desktop()
     monitors = get_monitors()
     if not monitors:
         return 0
@@ -716,12 +852,19 @@ class HotkeyManager:
             self.thread.join(timeout=0.6)
 
     def _run_loop(self):
+        ensure_input_desktop()
         registered = []
+        self.failed_hotkeys = []
         for hk_id, mods, vk, name, action in self.hotkeys:
             if user32.RegisterHotKey(None, hk_id, mods, vk):
                 registered.append(hk_id)
             else:
-                print(t("log_reg_failed", name=name))
+                self.failed_hotkeys.append(name)
+                if sys.stdout is not None:
+                    try:
+                        print(t("log_reg_failed", name=name))
+                    except Exception:
+                        pass
 
         msg = wintypes.MSG()
         try:
@@ -737,7 +880,11 @@ class HotkeyManager:
                                     if self.callback:
                                         self.callback(name)
                                 except Exception as e:
-                                    print(t("log_action_error", name=name, error=e))
+                                    if sys.stdout is not None:
+                                        try:
+                                            print(t("log_action_error", name=name, error=e))
+                                        except Exception:
+                                            pass
                                 break
                     user32.TranslateMessage(ctypes.byref(msg))
                     user32.DispatchMessageW(ctypes.byref(msg))
@@ -746,7 +893,11 @@ class HotkeyManager:
         finally:
             for hk_id in registered:
                 user32.UnregisterHotKey(None, hk_id)
-            print(t("log_unregistered"))
+            if sys.stdout is not None:
+                try:
+                    print(t("log_unregistered"))
+                except Exception:
+                    pass
 
 
 # ============================================================================
@@ -981,11 +1132,20 @@ class WindowRelocatorApp:
         for w in windows:
             l, t_pos, r, b = w['rect']
             pos_str = f"({l}, {t_pos})"
+            if w.get('is_minimized'):
+                pos_str += t("tag_minimized")
+            elif w.get('is_maximized'):
+                pos_str += t("tag_maximized")
             size_str = f"{w['width']} x {w['height']}"
             self.tree.insert("", tk.END, values=(w['title'], pos_str, size_str, w['hwnd']))
 
     def cmd_move_to_cursor(self):
-        """Moves active window to mouse cursor."""
+        """Moves selected or active window to mouse cursor."""
+        sel = self.tree.selection()
+        if sel:
+            self.cmd_move_selected_to_cursor()
+            return
+
         res = move_active_to_cursor()
         if res:
             self.set_status(t("status_moved_to_cursor"))
@@ -1000,7 +1160,27 @@ class WindowRelocatorApp:
         self.root.after(300, self.refresh_all)
 
     def cmd_move_to_mon(self, idx):
-        """Moves active window to Monitor 1, 2, or 3."""
+        """Moves selected or active window to Monitor by 1-based index."""
+        sel = self.tree.selection()
+        if sel:
+            item = self.tree.item(sel[0])
+            try:
+                hwnd = int(item['values'][3])
+            except (ValueError, IndexError):
+                hwnd = None
+            monitors = get_monitors()
+            if not monitors or not hwnd:
+                return
+            target_idx = max(0, min(idx - 1, len(monitors) - 1))
+            target_mon = monitors[target_idx]
+            res = move_window_to_monitor(hwnd, target_mon)
+            if res:
+                self.set_status(t("status_moved_selected", title=str(item['values'][0])[:30], index=target_idx + 1))
+            else:
+                self.set_status(t("status_move_failed"))
+            self.root.after(300, self.refresh_all)
+            return
+
         res = move_active_to_monitor_index(idx)
         if res:
             self.set_status(t("status_moved_to_mon", index=idx))
@@ -1062,8 +1242,7 @@ def build_cli_parser():
     parser.add_argument(
         "--mon",
         type=int,
-        choices=[1, 2, 3],
-        help="Move active foreground window to Monitor 1, 2, or 3 and exit."
+        help="Move active foreground window to specified monitor number (e.g. 1, 2, 3) and exit."
     )
     parser.add_argument(
         "--lang",
@@ -1080,6 +1259,7 @@ def build_cli_parser():
 
 def main():
     """Main application entry point."""
+    ensure_input_desktop()
     parser = build_cli_parser()
     args, unknown = parser.parse_known_args()
 
@@ -1101,6 +1281,9 @@ def main():
 
     # CLI command: Move active window to monitor index
     if args.mon is not None:
+        if args.mon < 1:
+            print(t("cli_invalid_mon", index=args.mon))
+            sys.exit(1)
         res = move_active_to_monitor_index(args.mon)
         print(t("cli_moved_to_mon", index=args.mon) if res else t("cli_no_active_window"))
         sys.exit(0)

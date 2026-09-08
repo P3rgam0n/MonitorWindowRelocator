@@ -250,6 +250,28 @@ class TestWindowRelocation(unittest.TestCase):
         mock_show.assert_any_call(1234, main.SW_RESTORE)
         mock_show.assert_any_call(1234, main.SW_MAXIMIZE)
 
+    @patch('main.user32.IsWindow', return_value=True)
+    @patch('main.user32.IsIconic', return_value=False)
+    @patch('main.user32.IsZoomed', return_value=False)
+    @patch('main.user32.GetWindowRect')
+    @patch('main.user32.SetWindowPos', return_value=1)
+    @patch('main.user32.SetForegroundWindow', return_value=1)
+    def test_move_window_preserves_small_window_size(self, mock_fg, mock_pos, mock_rect, mock_zoomed, mock_iconic, mock_win):
+        # Window of size 320x240 (e.g. calculator or small tool)
+        def rect_side_effect(hwnd, pt_ref):
+            obj = getattr(pt_ref, '_obj', pt_ref)
+            obj.left, obj.top, obj.right, obj.bottom = 0, 0, 320, 240
+            return 1
+        mock_rect.side_effect = rect_side_effect
+        target = {'work': (0, 0, 1920, 1080), 'work_width': 1920, 'work_height': 1080}
+        res = main.move_window_to_monitor(7777, target)
+        self.assertTrue(res)
+        args = mock_pos.call_args[0]
+        _, _, _, _, new_w, new_h, _ = args
+        # Compact size must be preserved, NOT inflated to 800x600
+        self.assertEqual(new_w, 320)
+        self.assertEqual(new_h, 240)
+
 
 class TestI18nAndConfig(unittest.TestCase):
     """Tests for internationalization dictionaries, keys parity, and config persistence."""
@@ -317,9 +339,55 @@ class TestCliParser(unittest.TestCase):
         args = self.parser.parse_args(['--mon', '2'])
         self.assertEqual(args.mon, 2)
 
+    def test_cli_mon_arbitrary_index(self):
+        # Supports multi-monitor setups beyond 3 displays (e.g. 4, 6)
+        args = self.parser.parse_args(['--mon', '4'])
+        self.assertEqual(args.mon, 4)
+
     def test_cli_lang(self):
         args = self.parser.parse_args(['--lang', 'pl'])
         self.assertEqual(args.lang, 'pl')
+
+
+class TestMinimizedPlacement(unittest.TestCase):
+    """Tests that minimized windows use normal restored position for off-screen detection."""
+
+    def setUp(self):
+        self.monitors = [
+            {'rect': (0, 0, 1920, 1080), 'work': (0, 0, 1920, 1040), 'primary': True},
+            {'rect': (1920, 0, 3840, 1080), 'work': (1920, 0, 3840, 1040), 'primary': False}
+        ]
+
+    def test_minimized_window_with_normal_rect_on_monitor(self):
+        # A minimized window with restored coordinates inside Monitor 1 is NOT off-screen
+        normal_rect = (200, 200, 1000, 800)
+        self.assertTrue(main.is_rect_on_any_monitor(normal_rect, self.monitors))
+
+    def test_minimized_window_with_normal_rect_offscreen(self):
+        # A minimized window stranded on a disconnected display is correctly detected as off-screen
+        normal_rect = (4500, 200, 5300, 800)
+        self.assertFalse(main.is_rect_on_any_monitor(normal_rect, self.monitors))
+
+
+class TestMonitorSorting(unittest.TestCase):
+    """Tests spatial sorting for multi-monitor arrangements."""
+
+    def test_spatial_sorting_left_to_right_and_top_to_bottom(self):
+        unsorted_monitors = [
+            {'rect': (1920, 0, 3840, 1080)},
+            {'rect': (0, 1080, 1920, 2160)},
+            {'rect': (0, 0, 1920, 1080)},
+            {'rect': (-1920, 0, 0, 1080)}
+        ]
+        sorted_monitors = sorted(unsorted_monitors, key=lambda m: (m['rect'][0], m['rect'][1]))
+        rects = [m['rect'] for m in sorted_monitors]
+        expected = [
+            (-1920, 0, 0, 1080),
+            (0, 0, 1920, 1080),
+            (0, 1080, 1920, 2160),
+            (1920, 0, 3840, 1080)
+        ]
+        self.assertEqual(rects, expected)
 
 
 class TestLiveSystemQueries(unittest.TestCase):
