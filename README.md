@@ -73,13 +73,25 @@ Gather off-screen windows instantly via command line or background script:
 | :--- | :--- |
 | `--gather` | Scans and moves all off-screen windows to the primary display and exits. |
 | `--to-cursor` | Moves the currently active foreground window to the mouse display and exits. |
-| `--lang <en\|pl>` | Forces GUI startup in the specified language (`en` for English, `pl` for Polish). |
+| `--mon <1\|2\|3>` | Moves the active foreground window to Monitor 1, 2, or 3 and exits. |
+| `--lang <en\|pl>` | Forces startup in the specified language (`en` for English, `pl` for Polish). |
+| `--version`, `-v` | Displays version information. |
+| `--help`, `-h` | Displays help message and exits. |
+
+---
+
+## 🧪 Testing & Verification
+
+Run the built-in automated test suite with Python's standard unittest runner:
+```cmd
+python -m unittest test_relocator.py -v
+```
 
 ---
 
 ## 🌐 Language Support / Wsparcie Językowe
 
-The interface defaults to **English**, but can be switched to **Polish** at any time:
+The interface automatically detects your Windows system display language (**English** or **Polish**), and can also be switched dynamically at any time:
 1. Use the **Language dropdown** in the top-right corner of the window.
 2. Or choose `Language -> Polski / English` from the top menu bar.
 3. Your preference is automatically saved to `config.json` for future launches.
@@ -90,15 +102,10 @@ The interface defaults to **English**, but can be switched to **Polish** at any 
 
 ```
 MonitorWindowRelocator/
-├── app_gui.py                   # Tkinter/ttk GUI interface and event handling
-├── relocator_core.py            # Win32 API interactions (monitors, cursor, window placement)
-├── hotkey_manager.py            # System global hotkey registration (RegisterHotKey)
-├── i18n.py                      # Internationalization & translation manager (en / pl)
-├── main.py                      # Main application entry point & CLI parser
+├── main.py                      # Complete application (Core, Win32 API, Hotkeys, i18n, GUI & CLI)
+├── test_relocator.py            # Automated unit & integration test suite (34 tests)
 ├── Run_App.bat                  # Background launcher script for GUI
 ├── Gather_Offscreen_Windows.bat # Instant CLI script to gather hidden windows
-├── Sciagnij_Niewidoczne_Okna.bat# Legacy Polish alias for Gather_Offscreen_Windows.bat
-├── Uruchom_Program.bat          # Legacy Polish alias for Run_App.bat
 ├── LICENSE                      # MIT Open Source License
 ├── .gitignore                   # Standard Git ignore rules
 └── README.md                    # Project documentation
