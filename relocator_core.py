@@ -4,10 +4,10 @@ import time
 
 # System DPI awareness setup for Windows 10/11
 try:
-    ctypes.windll.shcore.SetProcessDpiAwareness(2) # PROCESS_PER_MONITOR_DPI_AWARE
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
 except Exception:
     try:
-        ctypes.windll.user32.SetProcessDpiAwarenessContext(-4) # DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+        ctypes.windll.user32.SetProcessDpiAwarenessContext(-4)  # DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
     except Exception:
         pass
 
@@ -100,12 +100,14 @@ def get_monitors():
     return monitors
 
 def get_primary_monitor(monitors):
+    """Finds and returns the primary monitor dictionary from the list of monitors."""
     for m in monitors:
         if m['primary']:
             return m
     return monitors[0] if monitors else None
 
 def get_cursor_monitor_index(monitors):
+    """Returns the index and dictionary of the monitor currently containing the mouse cursor."""
     pt = wintypes.POINT()
     user32.GetCursorPos(ctypes.byref(pt))
     for idx, mon in enumerate(monitors):
@@ -138,8 +140,15 @@ def get_desktop_windows():
         user32.GetWindowTextW(hwnd, buf, length + 1)
         title = buf.value.strip()
         
-        # Ignore desktop / shell elements
-        if not title or title in ("Program Manager", "Settings", "NVIDIA GeForce Overlay", "Środowisko wprowadzania danych w systemie Windows"):
+        # Ignore desktop / shell elements (English & Polish OS titles)
+        ignored_titles = (
+            "Program Manager",
+            "Settings",
+            "NVIDIA GeForce Overlay",
+            "Windows Input Experience",
+            "Środowisko wprowadzania danych w systemie Windows"
+        )
+        if not title or title in ignored_titles:
             return
 
         ex_style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
@@ -168,7 +177,7 @@ def get_desktop_windows():
 
     # Strategy 1: OpenInputDesktop + EnumDesktopWindows
     try:
-        desk = user32.OpenInputDesktop(0, False, 0x0100) # DESKTOP_ENUMERATE
+        desk = user32.OpenInputDesktop(0, False, 0x0100)  # DESKTOP_ENUMERATE
         if desk:
             ENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p)
             def desk_cb(h, l):

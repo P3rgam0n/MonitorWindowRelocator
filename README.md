@@ -1,52 +1,111 @@
 # 🖥️ Monitor Window Relocator
 
-Narzędzie dla systemu Windows rozwiązujące problem okien aplikacji otwierających się na wyłączonych / uśpionych monitorach w konfiguracjach wielomonitorowych (np. 3 monitory).
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-lightgrey.svg)](https://www.microsoft.com/windows)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Languages](https://img.shields.io/badge/languages-English%20%7C%20Polski-green.svg)](#-language-support--wsparcie-językowe)
+
+**Monitor Window Relocator** is a lightweight, zero-dependency Windows utility that solves the common multi-monitor problem where application windows open off-screen on powered-off, sleeping, or disconnected monitors (e.g., in 3-monitor setups).
+
+It allows you to instantly pull any hidden or stranded window back to your active display using global hotkeys, a graphical user interface (GUI), or command-line execution scripts.
 
 ---
 
-## 🚀 Jak to działa?
+## 🚀 Key Features
 
-Gdy używasz 1 lub 2 monitorów z posiadanych 3, system Windows może pamiętać pozycję otwieranego programu i renderować jego okno na monitorze, który fizycznie jest wyłączony. 
-
-**Monitor Window Relocator** pozwala w szybki i prosty sposób przenieść dowolne okno na aktywny ekran za pomocą skrótu klawiszowego, kliknięcia w menu lub automatycznego skanowania.
+- **Instant Off-Screen Window Recovery**: Automatically scan all running windows and relocate any hidden/stranded windows to your primary monitor.
+- **Move to Mouse Cursor**: Bring the active application window straight to whichever monitor your mouse cursor is currently resting on.
+- **Direct Monitor Selection**: Move windows directly to Monitor 1, 2, or 3 using single key shortcuts.
+- **Global Hotkeys**: Control window positions anytime in the background without focusing the application.
+- **Multilingual Support**: Fully localized in **English** (default) and **Polish** with dynamic in-app language switching.
+- **Zero External Dependencies**: Built strictly using the Python Standard Library (`ctypes`, `tkinter`). No `pip install` required!
+- **High-DPI Aware**: Fully compatible with Windows 10/11 per-monitor DPI scaling setups.
 
 ---
 
-## ⌨️ Skróty Klawiszowe (Global Hotkeys)
+## ⌨️ Global Hotkeys
 
-Program działa w tle i reaguje na skróty klawiszowe w dowolnym momencie:
+The application runs in the background and responds to system-wide hotkeys:
 
-| Skrót | Działanie |
+| Hotkey | Action |
 | :--- | :--- |
-| **`Ctrl + Alt + M`** | **Przenieś aktywne okno na monitor, na którym znajduje się kursor myszy.** |
-| **`Ctrl + Alt + G`** | **Ściągnij wszystkie ukryte / niewidoczne okna z wyłączonych monitorów na Ekran Główny.** |
-| **`Ctrl + Alt + 1`** | **Przenieś aktywne okno na Monitor 1.** |
-| **`Ctrl + Alt + 2`** | **Przenieś aktywne okno na Monitor 2.** |
-| **`Ctrl + Alt + 3`** | **Przenieś aktywne okno na Monitor 3.** |
+| **`Ctrl + Alt + M`** | **Move active window** to the monitor under the mouse cursor. |
+| **`Ctrl + Alt + G`** | **Gather all hidden / off-screen windows** back to the Primary Monitor. |
+| **`Ctrl + Alt + 1`** | Move active window to **Monitor 1**. |
+| **`Ctrl + Alt + 2`** | Move active window to **Monitor 2**. |
+| **`Ctrl + Alt + 3`** | Move active window to **Monitor 3**. |
 
 ---
 
-## 🛠️ Uruchamianie
+## 🛠️ Usage & Execution
 
-1. **Uruchomienie interfejsu graficznego (GUI)**:
-   - Kliknij dwukrotnie w plik `Uruchom_Program.bat` lub wpisz w konsoli:
-     ```cmd
-     python main.py
-     ```
-
-2. **Szybkie ściągnięcie okien z wiersza poleceń / skrótu (bez otwierania GUI)**:
-   - Kliknij dwukrotnie w plik `Sciagnij_Niewidoczne_Okna.bat` lub wpisz:
-     ```cmd
-     python main.py --gather
-     ```
+### Prerequisites
+- Operating System: **Windows 10 / 11**
+- Python Environment: **Python 3.8+** (included standard Tkinter module)
 
 ---
 
-## 📁 Struktura Plików
+### 1. Running the GUI Application
+Launch the graphical interface with full display status and open applications list:
 
-- `relocator_core.py` – Natywna obsługa API Windows Win32 (detekcja monitorów, pozycja kursora myszy, skalowanie i przesuwanie okien).
-- `hotkey_manager.py` – Menedżer skrótów klawiszowych rejestrowanych w systemie Windows (`RegisterHotKey`).
-- `app_gui.py` – Interfejs graficzny aplikacji (Tkinter / ttk) z listą otwartych okien i przyciskami sterowania.
-- `main.py` – Plik główny programu.
-- `Uruchom_Program.bat` – Skrypt uruchamiający program w tle.
-- `Sciagnij_Niewidoczne_Okna.bat` – Skrypt do natychmiastowego zgarniania niewidocznych okien.
+- Double-click `Run_App.bat`
+- Or execute via terminal:
+  ```cmd
+  python main.py
+  ```
+
+---
+
+### 2. Standalone Quick Gather (No GUI)
+Gather off-screen windows instantly via command line or background script:
+
+- Double-click `Gather_Offscreen_Windows.bat`
+- Or execute via terminal:
+  ```cmd
+  python main.py --gather
+  ```
+
+---
+
+### 3. Command Line Arguments
+
+| Argument | Description |
+| :--- | :--- |
+| `--gather` | Scans and moves all off-screen windows to the primary display and exits. |
+| `--to-cursor` | Moves the currently active foreground window to the mouse display and exits. |
+| `--lang <en\|pl>` | Forces GUI startup in the specified language (`en` for English, `pl` for Polish). |
+
+---
+
+## 🌐 Language Support / Wsparcie Językowe
+
+The interface defaults to **English**, but can be switched to **Polish** at any time:
+1. Use the **Language dropdown** in the top-right corner of the window.
+2. Or choose `Language -> Polski / English` from the top menu bar.
+3. Your preference is automatically saved to `config.json` for future launches.
+
+---
+
+## 📁 Repository Structure
+
+```
+MonitorWindowRelocator/
+├── app_gui.py                   # Tkinter/ttk GUI interface and event handling
+├── relocator_core.py            # Win32 API interactions (monitors, cursor, window placement)
+├── hotkey_manager.py            # System global hotkey registration (RegisterHotKey)
+├── i18n.py                      # Internationalization & translation manager (en / pl)
+├── main.py                      # Main application entry point & CLI parser
+├── Run_App.bat                  # Background launcher script for GUI
+├── Gather_Offscreen_Windows.bat # Instant CLI script to gather hidden windows
+├── Sciagnij_Niewidoczne_Okna.bat# Legacy Polish alias for Gather_Offscreen_Windows.bat
+├── Uruchom_Program.bat          # Legacy Polish alias for Run_App.bat
+├── LICENSE                      # MIT Open Source License
+├── .gitignore                   # Standard Git ignore rules
+└── README.md                    # Project documentation
+```
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

@@ -1,2 +1,2 @@
 @echo off
-start "" pythonw "%~dp0main.py"
+call "%~dp0Run_App.bat"

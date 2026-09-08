@@ -3,6 +3,7 @@ from ctypes import wintypes
 import threading
 import time
 import relocator_core
+from i18n import t
 
 user32 = ctypes.windll.user32
 
@@ -18,6 +19,8 @@ VK_2 = 0x32
 VK_3 = 0x33
 
 class HotkeyManager:
+    """Manages system-wide global hotkeys for Monitor Window Relocator."""
+
     def __init__(self, on_hotkey_triggered_callback=None):
         self.running = False
         self.thread = None
@@ -40,6 +43,7 @@ class HotkeyManager:
         relocator_core.move_active_to_monitor_index(idx)
 
     def start(self):
+        """Starts the hotkey listener thread."""
         if self.running:
             return
         self.running = True
@@ -47,6 +51,7 @@ class HotkeyManager:
         self.thread.start()
 
     def stop(self):
+        """Stops the hotkey listener thread."""
         self.running = False
 
     def _run_loop(self):
@@ -55,13 +60,13 @@ class HotkeyManager:
             if user32.RegisterHotKey(None, hk_id, mods, vk):
                 registered.append(hk_id)
             else:
-                print(f"[HotkeyManager] Nie udało się zarejestrować skrótu: {name}")
+                print(t("log_reg_failed", name=name))
 
         msg = wintypes.MSG()
         try:
             while self.running:
                 # PeekMessage to allow non-blocking exit check
-                if user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 1): # PM_REMOVE = 1
+                if user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 1):  # PM_REMOVE = 1
                     if msg.message == WM_HOTKEY:
                         hk_id = msg.wParam
                         for id_val, mods, vk, name, action in self.hotkeys:
@@ -71,7 +76,7 @@ class HotkeyManager:
                                     if self.callback:
                                         self.callback(name)
                                 except Exception as e:
-                                    print(f"[HotkeyManager] Błąd podczas wykonywania akcji {name}: {e}")
+                                    print(t("log_action_error", name=name, error=e))
                                 break
                     user32.TranslateMessage(ctypes.byref(msg))
                     user32.DispatchMessageW(ctypes.byref(msg))
@@ -80,4 +85,4 @@ class HotkeyManager:
         finally:
             for hk_id in registered:
                 user32.UnregisterHotKey(None, hk_id)
-            print("[HotkeyManager] Pomyślnie wyrejestrowano skróty klawiszowe.")
+            print(t("log_unregistered"))
