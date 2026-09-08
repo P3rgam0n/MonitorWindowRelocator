@@ -79,12 +79,14 @@ VK_1 = 0x31
 VK_2 = 0x32
 VK_3 = 0x33
 
+
 class POINT(ctypes.Structure):
     """Win32 POINT structure."""
     _fields_ = [
         ('x', ctypes.c_long),
         ('y', ctypes.c_long)
     ]
+
 
 class RECT(ctypes.Structure):
     """Win32 RECT structure with width and height helper properties."""
@@ -103,6 +105,7 @@ class RECT(ctypes.Structure):
     def height(self):
         return self.bottom - self.top
 
+
 class WINDOWPLACEMENT(ctypes.Structure):
     """Win32 WINDOWPLACEMENT structure for retrieving normal (restored) window geometry."""
     _fields_ = [
@@ -114,6 +117,7 @@ class WINDOWPLACEMENT(ctypes.Structure):
         ('rcNormalPosition', RECT)
     ]
 
+
 class MONITORINFOEX(ctypes.Structure):
     """Win32 MONITORINFOEXW structure."""
     _fields_ = [
@@ -123,6 +127,7 @@ class MONITORINFOEX(ctypes.Structure):
         ('dwFlags', ctypes.c_ulong),
         ('szDevice', ctypes.c_wchar * 32)
     ]
+
 
 # Explicit 64-bit and 32-bit Win32 function signatures
 user32.GetDesktopWindow.restype = wintypes.HWND
@@ -660,9 +665,11 @@ def get_desktop_windows():
         desk = user32.OpenInputDesktop(0, False, DESKTOP_ENUMERATE | DESKTOP_SWITCHDESKTOP)
         if desk:
             DESKENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
             def desk_cb(h, lparam):
                 inspect_hwnd(h)
                 return 1
+
             user32.EnumDesktopWindows(desk, DESKENUMPROC(desk_cb), 0)
             user32.CloseDesktop(desk)
     except Exception:
@@ -670,9 +677,11 @@ def get_desktop_windows():
 
     # Strategy 2: Standard EnumWindows
     WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
     def enum_cb(h, lparam):
         inspect_hwnd(h)
         return 1
+
     user32.EnumWindows(WNDENUMPROC(enum_cb), 0)
 
     return windows
@@ -1107,7 +1116,7 @@ class WindowRelocatorApp:
         """Refreshes monitor info, mouse cursor position, active window, and open windows list."""
         monitors = get_monitors()
         mon_str = " | ".join([
-            f"Monitor {i+1}{t('lbl_mon_primary') if m['primary'] else ''}: {m['work_width']}x{m['work_height']}"
+            f"Monitor {i + 1}{t('lbl_mon_primary') if m['primary'] else ''}: {m['work_width']}x{m['work_height']}"
             for i, m in enumerate(monitors)
         ])
         self.lbl_monitors.config(text=t("lbl_monitors_format", count=len(monitors), monitors=mon_str))
@@ -1115,7 +1124,7 @@ class WindowRelocatorApp:
         # Cursor position
         idx, cur_mon = get_cursor_monitor_index(monitors)
         device_name = cur_mon['device'] if cur_mon else ''
-        self.lbl_cursor.config(text=t("lbl_cursor_format", index=idx+1, device=device_name))
+        self.lbl_cursor.config(text=t("lbl_cursor_format", index=idx + 1, device=device_name))
 
         # Active window
         active = get_active_window()
@@ -1202,7 +1211,7 @@ class WindowRelocatorApp:
             return
         idx, cur_mon = get_cursor_monitor_index(monitors)
         move_window_to_monitor(hwnd, cur_mon)
-        self.set_status(t("status_moved_selected", title=item['values'][0][:30], index=idx+1))
+        self.set_status(t("status_moved_selected", title=item['values'][0][:30], index=idx + 1))
         self.root.after(300, self.refresh_all)
 
     def set_status(self, text):
