@@ -9,6 +9,10 @@
 
 It allows you to instantly pull any hidden or stranded window back to your active display using global hotkeys, a graphical user interface (GUI), or command-line execution scripts.
 
+<p align="center">
+  <img src="MonitorWindowRelocator.png" alt="Monitor Window Relocator Screenshot" width="700" />
+</p>
+
 ---
 
 ## 🚀 Key Features
@@ -106,6 +110,7 @@ MonitorWindowRelocator/
 ├── test_relocator.py            # Automated unit & integration test suite (39 tests)
 ├── Run_App.bat                  # Background launcher script for GUI
 ├── Gather_Offscreen_Windows.bat # Instant CLI script to gather hidden windows
+├── MonitorWindowRelocator.png   # Application interface screenshot
 ├── LICENSE                      # MIT Open Source License
 ├── .gitignore                   # Standard Git ignore rules
 └── README.md                    # Project documentation
