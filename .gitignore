@@ -20,6 +20,8 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+*.spec
+*.zip
 
 # Virtual Environments
 venv/
@@ -36,6 +38,8 @@ config.json
 .vscode/
 *.swp
 *.swo
+.~lock.*#
+.~lock.*
 
 # OS Generated
 Thumbs.db
