@@ -26,7 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Expanded automated unit test suite to 46 tests covering themes, asset resolution, dark title bar integration, and CLI options.
 
 ### Changed
-- Refactored Tkinter widget layout to include top-right Theme and Language controls.
+- Streamlined UI by centralizing language and theme selection exclusively in top-right header dynamic switchers, removing redundant menu bar.
+- Refactored Tkinter widget layout and styles for seamless dark/light mode rendering.
 - Enhanced CLI execution mode to attach to parent console seamlessly in standalone binary mode.
 
 ## [1.1.0] - 2026-09-10

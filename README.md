@@ -39,7 +39,7 @@ The application provides full support for Dark and Light themes:
 - **System Default (Domyślny systemowy)**: Automatically detects whether Windows is in Dark Mode or Light Mode.
 - **Dark Theme (Ciemny motyw)**: Sleek, high-contrast dark palette tailored for low-light environments.
 - **Light Theme (Jasny motyw)**: Clean, high-readability light palette.
-- Switch themes anytime using the **Theme dropdown** in the header or via the top menu (`Theme` / `Motyw`). Your preference is automatically saved to `config.json`.
+- Switch themes anytime using the **Theme dropdown** in the top-right corner of the window. Your preference is automatically saved to `config.json`.
 
 ---
 
@@ -130,8 +130,7 @@ python -m unittest test_relocator.py -v
 
 The interface automatically detects your Windows system display language (**English** or **Polish**), and can also be switched dynamically at any time:
 1. Use the **Language dropdown** in the top-right corner of the window.
-2. Or choose `Language -> Polski / English` from the top menu bar.
-3. Your preference is automatically saved to `config.json` for future launches.
+2. Your preference is automatically saved to `config.json` for future launches.
 
 ---
 

@@ -519,7 +519,7 @@ class TestHotkeyManager(unittest.TestCase):
 
 
 class TestGuiApp(unittest.TestCase):
-    """Tests for GUI initialization, widget setup, theme changes, and clean close."""
+    """Tests for GUI initialization, widget setup, theme/language changes via header switchers, and clean close."""
 
     def test_gui_initialization_and_close(self):
         import tkinter as tk
@@ -527,16 +527,23 @@ class TestGuiApp(unittest.TestCase):
         try:
             app = main.WindowRelocatorApp(root)
             self.assertIsNotNone(app.tree)
-            self.assertIsNotNone(app.menu_bar)
+            self.assertIsNotNone(app.combo_theme)
+            self.assertIsNotNone(app.combo_lang)
             self.assertIn("Monitor Window Relocator", root.title())
 
-            # Test switching themes dynamically
+            # Test switching themes dynamically via header dropdown
             app.on_theme_change("dark")
             self.assertEqual(main.get_theme(), "dark")
             app.on_theme_change("light")
             self.assertEqual(main.get_theme(), "light")
             app.on_theme_change("system")
             self.assertEqual(main.get_theme(), "system")
+
+            # Test switching languages dynamically via header dropdown
+            app.on_language_change("pl")
+            self.assertEqual(main.get_language(), "pl")
+            app.on_language_change("en")
+            self.assertEqual(main.get_language(), "en")
 
             app.on_closing()
         except Exception:

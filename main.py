@@ -1131,7 +1131,6 @@ class WindowRelocatorApp:
         self.hotkey_mgr = HotkeyManager(on_hotkey_triggered_callback=self._on_hotkey_triggered)
         self.hotkey_mgr.start()
 
-        self._create_menu()
         self._create_widgets()
         self.apply_theme()
         self.retranslate_ui()
@@ -1154,36 +1153,6 @@ class WindowRelocatorApp:
                 self.root.iconphoto(True, self._app_icon_img)
             except Exception:
                 pass
-
-    def _create_menu(self):
-        """Creates top menu bar with language and theme settings."""
-        self.menu_bar = tk.Menu(self.root)
-
-        # Language cascade
-        self.lang_menu = tk.Menu(self.menu_bar, tearoff=0)
-        self.lang_var = tk.StringVar(value=get_language())
-        for lang_code, lang_name in LANGUAGES.items():
-            self.lang_menu.add_radiobutton(
-                label=lang_name,
-                value=lang_code,
-                variable=self.lang_var,
-                command=lambda code=lang_code: self.on_language_change(code)
-            )
-
-        # Theme cascade
-        self.theme_menu = tk.Menu(self.menu_bar, tearoff=0)
-        self.theme_var = tk.StringVar(value=get_theme())
-        for theme_code in THEMES:
-            self.theme_menu.add_radiobutton(
-                label=t(f"theme_{theme_code}"),
-                value=theme_code,
-                variable=self.theme_var,
-                command=lambda code=theme_code: self.on_theme_change(code)
-            )
-
-        self.menu_bar.add_cascade(menu=self.lang_menu)
-        self.menu_bar.add_cascade(menu=self.theme_menu)
-        self.root.config(menu=self.menu_bar)
 
     def _create_widgets(self):
         """Builds all GUI components."""
@@ -1420,30 +1389,6 @@ class WindowRelocatorApp:
             arrowcolor=pal["fg_secondary"]
         )
 
-        # Configure Menu Bar colors
-        if hasattr(self, 'menu_bar'):
-            try:
-                self.menu_bar.configure(
-                    bg=pal["menu_bg"],
-                    fg=pal["menu_fg"],
-                    activebackground=pal["menu_active_bg"],
-                    activeforeground=pal["menu_active_fg"]
-                )
-                self.lang_menu.configure(
-                    bg=pal["menu_bg"],
-                    fg=pal["menu_fg"],
-                    activebackground=pal["menu_active_bg"],
-                    activeforeground=pal["menu_active_fg"]
-                )
-                self.theme_menu.configure(
-                    bg=pal["menu_bg"],
-                    fg=pal["menu_fg"],
-                    activebackground=pal["menu_active_bg"],
-                    activeforeground=pal["menu_active_fg"]
-                )
-            except Exception:
-                pass
-
         # Combobox dropdown popup listbox styling
         self.root.option_add('*TCombobox*Listbox.background', pal["combobox_field"])
         self.root.option_add('*TCombobox*Listbox.foreground', pal["combobox_fg"])
@@ -1472,9 +1417,8 @@ class WindowRelocatorApp:
         self.combo_theme.set(t(f"theme_{current}_opt"))
 
     def on_language_change(self, lang_code):
-        """Handles language change from menu or dropdown."""
+        """Handles language change from header dropdown."""
         set_language(lang_code)
-        self.lang_var.set(lang_code)
         self.combo_lang.set(LANGUAGES.get(lang_code, "English"))
         self.retranslate_ui()
         self.refresh_all()
@@ -1488,9 +1432,8 @@ class WindowRelocatorApp:
                 break
 
     def on_theme_change(self, theme_code):
-        """Handles theme change from menu or dropdown."""
+        """Handles theme change from header dropdown."""
         set_theme(theme_code)
-        self.theme_var.set(theme_code)
         self.apply_theme()
         self._update_theme_combobox()
 
@@ -1505,11 +1448,6 @@ class WindowRelocatorApp:
     def retranslate_ui(self):
         """Updates all interface labels and button texts based on active language."""
         self.root.title(t("app_window_title"))
-        self.menu_bar.entryconfig(1, label=t("menu_language"))
-        self.menu_bar.entryconfig(2, label=t("menu_theme"))
-
-        for idx, theme_code in enumerate(THEMES):
-            self.theme_menu.entryconfig(idx, label=t(f"theme_{theme_code}"))
 
         self.title_label.config(text=t("app_title"))
         self.subtitle_label.config(text=t("app_subtitle"))
