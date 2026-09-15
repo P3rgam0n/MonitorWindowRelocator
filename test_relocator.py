@@ -1,13 +1,14 @@
 """
 Comprehensive test suite for Monitor Window Relocator (main.py).
 Tests core algorithms, Win32 coordinate logic, monitor selection,
-i18n translations, config persistence, CLI arguments, and HotkeyManager.
+i18n translations, themes, config persistence, CLI arguments,
+assets resolution, and HotkeyManager.
 """
 
 import os
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import main
 
@@ -305,16 +306,90 @@ class TestI18nAndConfig(unittest.TestCase):
             temp_config = os.path.join(tmp_dir, "test_config.json")
             with patch('main.CONFIG_FILE', temp_config):
                 main.set_language('pl')
+                main.set_theme('dark')
                 self.assertEqual(main.get_language(), 'pl')
+                self.assertEqual(main.get_theme(), 'dark')
                 self.assertTrue(os.path.exists(temp_config))
 
                 # Reload
                 main.load_config()
                 self.assertEqual(main.get_language(), 'pl')
+                self.assertEqual(main.get_theme(), 'dark')
 
                 # Switch back
                 main.set_language('en')
+                main.set_theme('system')
                 self.assertEqual(main.get_language(), 'en')
+                self.assertEqual(main.get_theme(), 'system')
+
+
+class TestThemeSubsystem(unittest.TestCase):
+    """Tests for theme detection, theme configuration, and palette definitions."""
+
+    def test_theme_options_and_palettes(self):
+        self.assertIn("system", main.THEMES)
+        self.assertIn("dark", main.THEMES)
+        self.assertIn("light", main.THEMES)
+
+        self.assertIn("dark", main.THEME_PALETTES)
+        self.assertIn("light", main.THEME_PALETTES)
+
+        dark_pal = main.THEME_PALETTES["dark"]
+        light_pal = main.THEME_PALETTES["light"]
+
+        # Ensure all required keys exist in palettes
+        expected_keys = [
+            "bg_main", "bg_card", "bg_input", "fg_primary", "fg_secondary",
+            "fg_accent", "btn_bg", "btn_fg", "btn_primary_bg", "btn_primary_fg",
+            "tree_bg", "tree_fg", "tree_heading_bg", "border_color"
+        ]
+        for k in expected_keys:
+            self.assertIn(k, dark_pal, f"Missing key '{k}' in dark palette")
+            self.assertIn(k, light_pal, f"Missing key '{k}' in light palette")
+
+    def test_set_and_get_theme(self):
+        main.set_theme("dark")
+        self.assertEqual(main.get_theme(), "dark")
+        self.assertEqual(main.get_effective_theme(), "dark")
+
+        main.set_theme("light")
+        self.assertEqual(main.get_theme(), "light")
+        self.assertEqual(main.get_effective_theme(), "light")
+
+        main.set_theme("system")
+        self.assertEqual(main.get_theme(), "system")
+        self.assertIn(main.get_effective_theme(), ["dark", "light"])
+
+    def test_detect_system_theme(self):
+        detected = main.detect_system_theme()
+        self.assertIn(detected, ["dark", "light"])
+
+
+class TestAssetPaths(unittest.TestCase):
+    """Tests for application assets resolution."""
+
+    def test_get_asset_path_local(self):
+        ico_path = main.get_asset_path("icon.ico")
+        self.assertTrue(os.path.isabs(ico_path))
+        self.assertTrue(ico_path.endswith("icon.ico"))
+
+    def test_get_asset_path_frozen(self):
+        with patch.object(main.sys, 'frozen', True, create=True), \
+             patch.object(main.sys, '_MEIPASS', r'C:\MockBundle', create=True):
+            resolved = main.get_asset_path("icon.ico")
+            self.assertTrue(resolved.startswith(r'C:\MockBundle'))
+
+
+class TestDarkTitleBar(unittest.TestCase):
+    """Tests for Win32 dark title bar helper."""
+
+    @patch('main.dwmapi.DwmSetWindowAttribute', return_value=0)
+    def test_apply_win32_dark_titlebar(self, mock_dwm):
+        main.apply_win32_dark_titlebar(12345, True)
+        mock_dwm.assert_called_once()
+        args = mock_dwm.call_args[0]
+        self.assertEqual(getattr(args[0], 'value', args[0]), 12345)
+        self.assertEqual(args[1], main.DWMWA_USE_IMMERSIVE_DARK_MODE)
 
 
 class TestCliParser(unittest.TestCase):
@@ -346,6 +421,10 @@ class TestCliParser(unittest.TestCase):
     def test_cli_lang(self):
         args = self.parser.parse_args(['--lang', 'pl'])
         self.assertEqual(args.lang, 'pl')
+
+    def test_cli_theme(self):
+        args = self.parser.parse_args(['--theme', 'dark'])
+        self.assertEqual(args.theme, 'dark')
 
 
 class TestMinimizedPlacement(unittest.TestCase):
@@ -440,7 +519,7 @@ class TestHotkeyManager(unittest.TestCase):
 
 
 class TestGuiApp(unittest.TestCase):
-    """Tests for GUI initialization, widget setup, and clean close."""
+    """Tests for GUI initialization, widget setup, theme changes, and clean close."""
 
     def test_gui_initialization_and_close(self):
         import tkinter as tk
@@ -450,6 +529,15 @@ class TestGuiApp(unittest.TestCase):
             self.assertIsNotNone(app.tree)
             self.assertIsNotNone(app.menu_bar)
             self.assertIn("Monitor Window Relocator", root.title())
+
+            # Test switching themes dynamically
+            app.on_theme_change("dark")
+            self.assertEqual(main.get_theme(), "dark")
+            app.on_theme_change("light")
+            self.assertEqual(main.get_theme(), "light")
+            app.on_theme_change("system")
+            self.assertEqual(main.get_theme(), "system")
+
             app.on_closing()
         except Exception:
             root.destroy()

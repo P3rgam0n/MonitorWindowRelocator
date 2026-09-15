@@ -67,6 +67,8 @@ GA_ROOT = 2
 DESKTOP_ENUMERATE = 0x0100
 DESKTOP_SWITCHDESKTOP = 0x0040
 DWMWA_CLOAKED = 14
+DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19
 
 MOD_ALT = 0x0001
 MOD_CONTROL = 0x0002
@@ -198,6 +200,11 @@ if dwmapi:
         dwmapi.DwmGetWindowAttribute.restype = ctypes.c_long
     except Exception:
         pass
+    try:
+        dwmapi.DwmSetWindowAttribute.argtypes = [wintypes.HWND, ctypes.c_ulong, ctypes.c_void_p, ctypes.c_ulong]
+        dwmapi.DwmSetWindowAttribute.restype = ctypes.c_long
+    except Exception:
+        pass
 
 if hasattr(user32, 'GetWindowLongPtrW'):
     user32.GetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
@@ -221,9 +228,68 @@ def ensure_input_desktop():
         pass
 
 
+def get_asset_path(filename):
+    """Resolves path for assets in both local development and PyInstaller bundled environment."""
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        base_dir = getattr(sys, '_MEIPASS')
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    p1 = os.path.join(base_dir, "assets", filename)
+    if os.path.exists(p1):
+        return p1
+    p2 = os.path.join(base_dir, filename)
+    if os.path.exists(p2):
+        return p2
+    return p1
+
+
+def apply_win32_dark_titlebar(hwnd, is_dark):
+    """Applies immersive dark or light title bar to a window HWND on Windows 10/11."""
+    if dwmapi and hwnd:
+        try:
+            val = ctypes.c_int(1 if is_dark else 0)
+            res = dwmapi.DwmSetWindowAttribute(wintypes.HWND(hwnd), DWMWA_USE_IMMERSIVE_DARK_MODE, ctypes.byref(val), ctypes.sizeof(val))
+            if res != 0:
+                dwmapi.DwmSetWindowAttribute(wintypes.HWND(hwnd), DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1, ctypes.byref(val), ctypes.sizeof(val))
+        except Exception:
+            pass
+
+
+def get_tk_hwnd(root):
+    """Retrieves the top-level Win32 HWND for a Tkinter root window."""
+    try:
+        hwnd = root.winfo_id()
+        if hwnd:
+            root_hwnd = user32.GetAncestor(hwnd, GA_ROOT)
+            return root_hwnd or hwnd
+    except Exception:
+        pass
+    return None
+
+
+def attach_console():
+    """Attaches stdout/stderr to parent console when launched from command line."""
+    if hasattr(kernel32, 'AttachConsole'):
+        try:
+            kernel32.AttachConsole.argtypes = [ctypes.c_uint]
+            kernel32.AttachConsole.restype = wintypes.BOOL
+            # 0xFFFFFFFF = ATTACH_PARENT_PROCESS (-1)
+            if kernel32.AttachConsole(0xFFFFFFFF):
+                if sys.stdout is not None and hasattr(sys.stdout, 'reconfigure'):
+                    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+                if sys.stderr is not None and hasattr(sys.stderr, 'reconfigure'):
+                    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+        except Exception:
+            pass
+
+
 # ============================================================================
-# Section 2: Internationalization (i18n) & Configuration
+# Section 2: Internationalization (i18n), Themes & Configuration
 # ============================================================================
+
+APP_NAME = "Monitor Window Relocator"
+APP_VERSION = "1.2.0"
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
@@ -232,11 +298,88 @@ LANGUAGES = {
     "pl": "Polski"
 }
 
+THEMES = {
+    "system": "System Default",
+    "dark": "Dark Theme",
+    "light": "Light Theme"
+}
+
+THEME_PALETTES = {
+    "dark": {
+        "bg_main": "#1e1e24",
+        "bg_card": "#282a36",
+        "bg_input": "#181920",
+        "fg_primary": "#f8fafc",
+        "fg_secondary": "#94a3b8",
+        "fg_accent": "#60a5fa",
+        "btn_bg": "#333745",
+        "btn_fg": "#f8fafc",
+        "btn_hover": "#3f4455",
+        "btn_active": "#4b5166",
+        "btn_primary_bg": "#2563eb",
+        "btn_primary_fg": "#ffffff",
+        "btn_primary_hover": "#1d4ed8",
+        "btn_primary_active": "#1e40af",
+        "tree_bg": "#181920",
+        "tree_fg": "#f1f5f9",
+        "tree_fieldbg": "#181920",
+        "tree_heading_bg": "#282a36",
+        "tree_heading_fg": "#f8fafc",
+        "tree_selected_bg": "#3d59a1",
+        "tree_selected_fg": "#ffffff",
+        "border_color": "#3e4451",
+        "scrollbar_bg": "#333745",
+        "scrollbar_trough": "#1e1e24",
+        "menu_bg": "#282a36",
+        "menu_fg": "#f8fafc",
+        "menu_active_bg": "#3d59a1",
+        "menu_active_fg": "#ffffff",
+        "status_fg": "#38bdf8",
+        "combobox_bg": "#333745",
+        "combobox_fg": "#f8fafc",
+        "combobox_field": "#181920"
+    },
+    "light": {
+        "bg_main": "#f4f6f9",
+        "bg_card": "#ffffff",
+        "bg_input": "#ffffff",
+        "fg_primary": "#0f172a",
+        "fg_secondary": "#64748b",
+        "fg_accent": "#2563eb",
+        "btn_bg": "#e2e8f0",
+        "btn_fg": "#0f172a",
+        "btn_hover": "#cbd5e1",
+        "btn_active": "#94a3b8",
+        "btn_primary_bg": "#2563eb",
+        "btn_primary_fg": "#ffffff",
+        "btn_primary_hover": "#1d4ed8",
+        "btn_primary_active": "#1e40af",
+        "tree_bg": "#ffffff",
+        "tree_fg": "#0f172a",
+        "tree_fieldbg": "#ffffff",
+        "tree_heading_bg": "#e2e8f0",
+        "tree_heading_fg": "#0f172a",
+        "tree_selected_bg": "#2563eb",
+        "tree_selected_fg": "#ffffff",
+        "border_color": "#cbd5e1",
+        "scrollbar_bg": "#cbd5e1",
+        "scrollbar_trough": "#f1f5f9",
+        "menu_bg": "#ffffff",
+        "menu_fg": "#0f172a",
+        "menu_active_bg": "#2563eb",
+        "menu_active_fg": "#ffffff",
+        "status_fg": "#2563eb",
+        "combobox_bg": "#e2e8f0",
+        "combobox_fg": "#0f172a",
+        "combobox_field": "#ffffff"
+    }
+}
+
 TRANSLATIONS = {
     "en": {
         # App Info
         "app_title": "🖥️ Monitor Window Relocator",
-        "app_window_title": "Monitor Window Relocator v1.1",
+        "app_window_title": f"Monitor Window Relocator v{APP_VERSION}",
         "app_subtitle": "Quickly move windows from turned-off or sleeping monitors to your active screen.",
 
         # Status Frame
@@ -282,7 +425,15 @@ TRANSLATIONS = {
         "dialog_select_window_first": "Please select a window from the list first.",
         "menu_settings": "Settings",
         "menu_language": "Language",
+        "menu_theme": "Theme",
         "lbl_language": "Language:",
+        "lbl_theme": "Theme:",
+        "theme_system": "System Default",
+        "theme_dark": "Dark Theme",
+        "theme_light": "Light Theme",
+        "theme_system_opt": "🖥️ System",
+        "theme_dark_opt": "🌙 Dark",
+        "theme_light_opt": "☀️ Light",
         "tag_minimized": " (Minimized)",
         "tag_maximized": " (Maximized)",
         "btn_mon_n": "Monitor {index}",
@@ -302,7 +453,7 @@ TRANSLATIONS = {
     "pl": {
         # App Info
         "app_title": "🖥️ Monitor Window Relocator",
-        "app_window_title": "Monitor Window Relocator v1.1",
+        "app_window_title": f"Monitor Window Relocator v{APP_VERSION}",
         "app_subtitle": "Szybkie przenoszenie okien z wyłączonych lub uśpionych monitorów na aktywny ekran.",
 
         # Status Frame
@@ -348,7 +499,15 @@ TRANSLATIONS = {
         "dialog_select_window_first": "Zaznacz najpierw okno z listy otwartych aplikacji.",
         "menu_settings": "Ustawienia",
         "menu_language": "Język",
+        "menu_theme": "Motyw",
         "lbl_language": "Język:",
+        "lbl_theme": "Motyw:",
+        "theme_system": "Domyślny systemowy",
+        "theme_dark": "Ciemny motyw",
+        "theme_light": "Jasny motyw",
+        "theme_system_opt": "🖥️ Systemowy",
+        "theme_dark_opt": "🌙 Ciemny",
+        "theme_light_opt": "☀️ Jasny",
         "tag_minimized": " (Zminimalizowane)",
         "tag_maximized": " (Zmaksymalizowane)",
         "btn_mon_n": "Monitor {index}",
@@ -368,6 +527,7 @@ TRANSLATIONS = {
 }
 
 _current_lang = "en"
+_current_theme = "system"
 
 
 def detect_system_language():
@@ -389,9 +549,28 @@ def detect_system_language():
     return "en"
 
 
+def detect_system_theme():
+    """Detects whether Windows system theme is dark or light."""
+    try:
+        import winreg
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
+        val, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+        winreg.CloseKey(key)
+        return "light" if val == 1 else "dark"
+    except Exception:
+        return "dark"
+
+
+def get_effective_theme():
+    """Returns the effective theme ('dark' or 'light') resolving 'system' if needed."""
+    if _current_theme == "system":
+        return detect_system_theme()
+    return _current_theme if _current_theme in ("dark", "light") else "dark"
+
+
 def load_config():
-    """Loads configuration including language preference, or auto-detects system language."""
-    global _current_lang
+    """Loads configuration including language and theme preferences, or auto-detects system defaults."""
+    global _current_lang, _current_theme
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -399,16 +578,23 @@ def load_config():
                 lang = data.get("language")
                 if lang in LANGUAGES:
                     _current_lang = lang
-                    return
+                theme = data.get("theme")
+                if theme in THEMES:
+                    _current_theme = theme
+                return
         except Exception:
             pass
     _current_lang = detect_system_language()
+    _current_theme = "system"
 
 
 def save_config():
-    """Saves language preference to config.json."""
+    """Saves language and theme preferences to config.json."""
     try:
-        data = {"language": _current_lang}
+        data = {
+            "language": _current_lang,
+            "theme": _current_theme
+        }
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
     except Exception:
@@ -428,6 +614,19 @@ def get_language():
     return _current_lang
 
 
+def set_theme(theme_code):
+    """Sets active theme preference ('system', 'dark', 'light') and saves config."""
+    global _current_theme
+    if theme_code in THEMES:
+        _current_theme = theme_code
+        save_config()
+
+
+def get_theme():
+    """Returns currently selected theme code ('system', 'dark', 'light')."""
+    return _current_theme
+
+
 def t(key, **kwargs):
     """Retrieves localized string for key in current language with optional formatting."""
     lang_dict = TRANSLATIONS.get(_current_lang, TRANSLATIONS["en"])
@@ -440,7 +639,7 @@ def t(key, **kwargs):
     return template
 
 
-# Initialize config & language
+# Initialize config, language & theme
 load_config()
 
 
@@ -914,17 +1113,19 @@ class HotkeyManager:
 # ============================================================================
 
 class WindowRelocatorApp:
-    """Modern Tkinter GUI Application for Monitor Window Relocator."""
+    """Modern Tkinter GUI Application for Monitor Window Relocator with Dark Theme support."""
 
     def __init__(self, root):
         self.root = root
-        self.root.geometry("820x600")
-        self.root.minsize(680, 500)
+        self.root.geometry("860x620")
+        self.root.minsize(700, 520)
 
         # Style configuration
         self.style = ttk.Style()
         self.style.theme_use('clam')
-        self.root.configure(bg="#f4f6f9")
+
+        # Set application window icon
+        self._set_app_icon()
 
         # Initialize hotkey manager
         self.hotkey_mgr = HotkeyManager(on_hotkey_triggered_callback=self._on_hotkey_triggered)
@@ -932,18 +1133,35 @@ class WindowRelocatorApp:
 
         self._create_menu()
         self._create_widgets()
+        self.apply_theme()
         self.retranslate_ui()
         self.refresh_all()
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
+    def _set_app_icon(self):
+        """Loads and applies multi-resolution icon to Tkinter window."""
+        ico_path = get_asset_path("icon.ico")
+        if os.path.exists(ico_path):
+            try:
+                self.root.iconbitmap(ico_path)
+            except Exception:
+                pass
+        png_path = get_asset_path("icon.png")
+        if os.path.exists(png_path):
+            try:
+                self._app_icon_img = tk.PhotoImage(file=png_path)
+                self.root.iconphoto(True, self._app_icon_img)
+            except Exception:
+                pass
+
     def _create_menu(self):
-        """Creates top menu bar with language settings."""
+        """Creates top menu bar with language and theme settings."""
         self.menu_bar = tk.Menu(self.root)
 
+        # Language cascade
         self.lang_menu = tk.Menu(self.menu_bar, tearoff=0)
         self.lang_var = tk.StringVar(value=get_language())
-
         for lang_code, lang_name in LANGUAGES.items():
             self.lang_menu.add_radiobutton(
                 label=lang_name,
@@ -952,19 +1170,31 @@ class WindowRelocatorApp:
                 command=lambda code=lang_code: self.on_language_change(code)
             )
 
+        # Theme cascade
+        self.theme_menu = tk.Menu(self.menu_bar, tearoff=0)
+        self.theme_var = tk.StringVar(value=get_theme())
+        for theme_code in THEMES:
+            self.theme_menu.add_radiobutton(
+                label=t(f"theme_{theme_code}"),
+                value=theme_code,
+                variable=self.theme_var,
+                command=lambda code=theme_code: self.on_theme_change(code)
+            )
+
         self.menu_bar.add_cascade(menu=self.lang_menu)
+        self.menu_bar.add_cascade(menu=self.theme_menu)
         self.root.config(menu=self.menu_bar)
 
     def _create_widgets(self):
         """Builds all GUI components."""
-        main_frame = ttk.Frame(self.root, padding=12)
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        self.main_frame = ttk.Frame(self.root, padding=12)
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Header Frame (Title + Subtitle + Language Selector)
-        header_frame = ttk.Frame(main_frame)
-        header_frame.pack(fill=tk.X, pady=(0, 10))
+        # Header Frame (Title + Subtitle on left; Theme + Language Selectors on right)
+        self.header_frame = ttk.Frame(self.main_frame)
+        self.header_frame.pack(fill=tk.X, pady=(0, 10))
 
-        title_sub_frame = ttk.Frame(header_frame)
+        title_sub_frame = ttk.Frame(self.header_frame)
         title_sub_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         self.title_label = ttk.Label(title_sub_frame, font=("Segoe UI", 16, "bold"))
@@ -973,26 +1203,37 @@ class WindowRelocatorApp:
         self.subtitle_label = ttk.Label(title_sub_frame, font=("Segoe UI", 9, "italic"))
         self.subtitle_label.pack(anchor="w")
 
-        # Top-right Language Selector Combobox
-        lang_selector_frame = ttk.Frame(header_frame)
-        lang_selector_frame.pack(side=tk.RIGHT, anchor="ne")
+        # Top-right Controls Frame
+        controls_frame = ttk.Frame(self.header_frame)
+        controls_frame.pack(side=tk.RIGHT, anchor="ne")
 
-        self.lbl_lang_select = ttk.Label(lang_selector_frame, font=("Segoe UI", 9))
-        self.lbl_lang_select.pack(side=tk.LEFT, padx=(0, 5))
+        # Theme Selector Combobox
+        self.lbl_theme_select = ttk.Label(controls_frame, font=("Segoe UI", 9))
+        self.lbl_theme_select.pack(side=tk.LEFT, padx=(0, 4))
+
+        self.combo_theme = ttk.Combobox(
+            controls_frame,
+            state="readonly",
+            width=13
+        )
+        self.combo_theme.bind("<<ComboboxSelected>>", self._on_combobox_theme_change)
+        self.combo_theme.pack(side=tk.LEFT, padx=(0, 12))
+
+        # Language Selector Combobox
+        self.lbl_lang_select = ttk.Label(controls_frame, font=("Segoe UI", 9))
+        self.lbl_lang_select.pack(side=tk.LEFT, padx=(0, 4))
 
         self.combo_lang = ttk.Combobox(
-            lang_selector_frame,
+            controls_frame,
             values=list(LANGUAGES.values()),
             state="readonly",
             width=10
         )
-        current_name = LANGUAGES.get(get_language(), "English")
-        self.combo_lang.set(current_name)
         self.combo_lang.bind("<<ComboboxSelected>>", self._on_combobox_language_change)
         self.combo_lang.pack(side=tk.LEFT)
 
         # Status Frame
-        self.status_lf = ttk.LabelFrame(main_frame, padding=10)
+        self.status_lf = ttk.LabelFrame(self.main_frame, padding=10)
         self.status_lf.pack(fill=tk.X, pady=(0, 10))
 
         self.lbl_monitors = ttk.Label(self.status_lf, font=("Segoe UI", 9))
@@ -1005,16 +1246,16 @@ class WindowRelocatorApp:
         self.lbl_active.pack(anchor="w", pady=2)
 
         # Quick Actions Frame
-        self.actions_lf = ttk.LabelFrame(main_frame, padding=10)
+        self.actions_lf = ttk.LabelFrame(self.main_frame, padding=10)
         self.actions_lf.pack(fill=tk.X, pady=(0, 10))
 
         btn_box1 = ttk.Frame(self.actions_lf)
         btn_box1.pack(fill=tk.X, pady=2)
 
-        self.btn_cursor = ttk.Button(btn_box1, command=self.cmd_move_to_cursor)
+        self.btn_cursor = ttk.Button(btn_box1, style="Primary.TButton", command=self.cmd_move_to_cursor)
         self.btn_cursor.pack(side=tk.LEFT, padx=(0, 10), fill=tk.X, expand=True)
 
-        self.btn_gather = ttk.Button(btn_box1, command=self.cmd_gather)
+        self.btn_gather = ttk.Button(btn_box1, style="Primary.TButton", command=self.cmd_gather)
         self.btn_gather.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         btn_box2 = ttk.Frame(self.actions_lf)
@@ -1033,14 +1274,14 @@ class WindowRelocatorApp:
         self.btn_mon3.pack(side=tk.LEFT, padx=3)
 
         # Windows List Frame
-        self.win_lf = ttk.LabelFrame(main_frame, padding=10)
+        self.win_lf = ttk.LabelFrame(self.main_frame, padding=10)
         self.win_lf.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
 
         columns = ("title", "pos", "size", "hwnd")
         self.tree = ttk.Treeview(self.win_lf, columns=columns, show="headings", selectmode="browse")
 
-        self.tree.column("title", width=400)
-        self.tree.column("pos", width=130, anchor="center")
+        self.tree.column("title", width=420)
+        self.tree.column("pos", width=140, anchor="center")
         self.tree.column("size", width=120, anchor="center")
         self.tree.column("hwnd", width=90, anchor="center")
 
@@ -1054,7 +1295,7 @@ class WindowRelocatorApp:
         self.tree.bind("<Double-1>", lambda event: self.cmd_move_selected_to_cursor())
 
         # Bottom control bar
-        bottom_bar = ttk.Frame(main_frame)
+        bottom_bar = ttk.Frame(self.main_frame)
         bottom_bar.pack(fill=tk.X, pady=(5, 0))
 
         self.btn_refresh = ttk.Button(bottom_bar, command=self.refresh_all)
@@ -1065,6 +1306,170 @@ class WindowRelocatorApp:
 
         self.lbl_status_bar = ttk.Label(bottom_bar, font=("Segoe UI", 9, "italic"))
         self.lbl_status_bar.pack(side=tk.RIGHT)
+
+    def apply_theme(self, theme_name=None):
+        """Configures ttk styles and palette colors for the entire application interface."""
+        if theme_name is None:
+            theme_name = get_effective_theme()
+
+        pal = THEME_PALETTES.get(theme_name, THEME_PALETTES["dark"])
+        is_dark = (theme_name == "dark")
+
+        self.root.configure(bg=pal["bg_main"])
+
+        s = self.style
+        s.theme_use('clam')
+
+        # Frame styles
+        s.configure('TFrame', background=pal["bg_main"])
+        s.configure('Card.TFrame', background=pal["bg_card"])
+
+        # Label styles
+        s.configure('TLabel', background=pal["bg_main"], foreground=pal["fg_primary"])
+        s.configure('Card.TLabel', background=pal["bg_card"], foreground=pal["fg_primary"])
+
+        # LabelFrame styles
+        s.configure('TLabelframe', background=pal["bg_card"], bordercolor=pal["border_color"])
+        s.configure('TLabelframe.Label', background=pal["bg_card"], foreground=pal["fg_accent"], font=("Segoe UI", 9, "bold"))
+
+        # Standard Button style
+        s.configure(
+            'TButton',
+            background=pal["btn_bg"],
+            foreground=pal["btn_fg"],
+            bordercolor=pal["border_color"],
+            lightcolor=pal["btn_bg"],
+            darkcolor=pal["btn_bg"],
+            focuscolor=pal["btn_hover"],
+            font=("Segoe UI", 9)
+        )
+        s.map(
+            'TButton',
+            background=[('pressed', pal["btn_active"]), ('active', pal["btn_hover"])],
+            foreground=[('pressed', pal["btn_fg"]), ('active', pal["btn_fg"])]
+        )
+
+        # Primary / Action Button style
+        s.configure(
+            'Primary.TButton',
+            background=pal["btn_primary_bg"],
+            foreground=pal["btn_primary_fg"],
+            bordercolor=pal["btn_primary_hover"],
+            lightcolor=pal["btn_primary_bg"],
+            darkcolor=pal["btn_primary_bg"],
+            focuscolor=pal["btn_primary_hover"],
+            font=("Segoe UI", 9, "bold")
+        )
+        s.map(
+            'Primary.TButton',
+            background=[('pressed', pal["btn_primary_active"]), ('active', pal["btn_primary_hover"])],
+            foreground=[('pressed', pal["btn_primary_fg"]), ('active', pal["btn_primary_fg"])]
+        )
+
+        # Combobox style
+        s.configure(
+            'TCombobox',
+            fieldbackground=pal["combobox_field"],
+            background=pal["combobox_bg"],
+            foreground=pal["combobox_fg"],
+            arrowcolor=pal["fg_primary"],
+            bordercolor=pal["border_color"],
+            lightcolor=pal["combobox_bg"],
+            darkcolor=pal["combobox_bg"]
+        )
+        s.map(
+            'TCombobox',
+            fieldbackground=[('readonly', pal["combobox_field"])],
+            foreground=[('readonly', pal["combobox_fg"])]
+        )
+
+        # Treeview style
+        s.configure(
+            'Treeview',
+            background=pal["tree_bg"],
+            foreground=pal["tree_fg"],
+            fieldbackground=pal["tree_fieldbg"],
+            rowheight=26,
+            bordercolor=pal["border_color"],
+            lightcolor=pal["border_color"],
+            darkcolor=pal["border_color"]
+        )
+        s.configure(
+            'Treeview.Heading',
+            background=pal["tree_heading_bg"],
+            foreground=pal["tree_heading_fg"],
+            relief='flat',
+            font=("Segoe UI", 9, "bold")
+        )
+        s.map(
+            'Treeview.Heading',
+            background=[('active', pal["btn_hover"])]
+        )
+        s.map(
+            'Treeview',
+            background=[('selected', pal["tree_selected_bg"])],
+            foreground=[('selected', pal["tree_selected_fg"])]
+        )
+
+        # Scrollbar style
+        s.configure(
+            'Vertical.TScrollbar',
+            background=pal["scrollbar_bg"],
+            troughcolor=pal["scrollbar_trough"],
+            bordercolor=pal["border_color"],
+            arrowcolor=pal["fg_secondary"]
+        )
+
+        # Configure Menu Bar colors
+        if hasattr(self, 'menu_bar'):
+            try:
+                self.menu_bar.configure(
+                    bg=pal["menu_bg"],
+                    fg=pal["menu_fg"],
+                    activebackground=pal["menu_active_bg"],
+                    activeforeground=pal["menu_active_fg"]
+                )
+                self.lang_menu.configure(
+                    bg=pal["menu_bg"],
+                    fg=pal["menu_fg"],
+                    activebackground=pal["menu_active_bg"],
+                    activeforeground=pal["menu_active_fg"]
+                )
+                self.theme_menu.configure(
+                    bg=pal["menu_bg"],
+                    fg=pal["menu_fg"],
+                    activebackground=pal["menu_active_bg"],
+                    activeforeground=pal["menu_active_fg"]
+                )
+            except Exception:
+                pass
+
+        # Combobox dropdown popup listbox styling
+        self.root.option_add('*TCombobox*Listbox.background', pal["combobox_field"])
+        self.root.option_add('*TCombobox*Listbox.foreground', pal["combobox_fg"])
+        self.root.option_add('*TCombobox*Listbox.selectBackground', pal["tree_selected_bg"])
+        self.root.option_add('*TCombobox*Listbox.selectForeground', pal["tree_selected_fg"])
+
+        # Label direct color assignments
+        if hasattr(self, 'title_label'):
+            self.title_label.configure(foreground=pal["fg_primary"])
+        if hasattr(self, 'subtitle_label'):
+            self.subtitle_label.configure(foreground=pal["fg_secondary"])
+        if hasattr(self, 'lbl_active'):
+            self.lbl_active.configure(foreground=pal["fg_accent"])
+        if hasattr(self, 'lbl_status_bar'):
+            self.lbl_status_bar.configure(foreground=pal["status_fg"])
+
+        # Apply immersive dark title bar on Windows 10/11
+        self.root.update_idletasks()
+        apply_win32_dark_titlebar(get_tk_hwnd(self.root), is_dark)
+
+    def _update_theme_combobox(self):
+        """Updates values and selection of theme combobox in current language."""
+        theme_vals = [t("theme_system_opt"), t("theme_dark_opt"), t("theme_light_opt")]
+        self.combo_theme.config(values=theme_vals)
+        current = get_theme()
+        self.combo_theme.set(t(f"theme_{current}_opt"))
 
     def on_language_change(self, lang_code):
         """Handles language change from menu or dropdown."""
@@ -1082,14 +1487,37 @@ class WindowRelocatorApp:
                 self.on_language_change(code)
                 break
 
+    def on_theme_change(self, theme_code):
+        """Handles theme change from menu or dropdown."""
+        set_theme(theme_code)
+        self.theme_var.set(theme_code)
+        self.apply_theme()
+        self._update_theme_combobox()
+
+    def _on_combobox_theme_change(self, event=None):
+        """Callback when user selects a theme from the dropdown."""
+        selected_text = self.combo_theme.get()
+        for code in ("system", "dark", "light"):
+            if t(f"theme_{code}_opt") == selected_text:
+                self.on_theme_change(code)
+                break
+
     def retranslate_ui(self):
         """Updates all interface labels and button texts based on active language."""
         self.root.title(t("app_window_title"))
         self.menu_bar.entryconfig(1, label=t("menu_language"))
+        self.menu_bar.entryconfig(2, label=t("menu_theme"))
+
+        for idx, theme_code in enumerate(THEMES):
+            self.theme_menu.entryconfig(idx, label=t(f"theme_{theme_code}"))
 
         self.title_label.config(text=t("app_title"))
         self.subtitle_label.config(text=t("app_subtitle"))
         self.lbl_lang_select.config(text=t("lbl_language"))
+        self.lbl_theme_select.config(text=t("lbl_theme"))
+
+        self._update_theme_combobox()
+        self.combo_lang.set(LANGUAGES.get(get_language(), "English"))
 
         self.status_lf.config(text=t("status_frame_title"))
         self.actions_lf.config(text=t("actions_frame_title"))
@@ -1236,7 +1664,7 @@ class WindowRelocatorApp:
 def build_cli_parser():
     """Builds and returns the argparse CLI parser."""
     parser = argparse.ArgumentParser(
-        description="Monitor Window Relocator - Multi-monitor off-screen window recovery utility."
+        description=f"{APP_NAME} - Multi-monitor off-screen window recovery utility."
     )
     parser.add_argument(
         "--gather",
@@ -1259,9 +1687,15 @@ def build_cli_parser():
         help="Set application language ('en' for English, 'pl' for Polski)."
     )
     parser.add_argument(
+        "--theme",
+        choices=["system", "dark", "light"],
+        help="Set interface theme ('system', 'dark', 'light')."
+    )
+    parser.add_argument(
         "--version",
+        "-v",
         action="version",
-        version="Monitor Window Relocator v1.1"
+        version=f"{APP_NAME} v{APP_VERSION}"
     )
     return parser
 
@@ -1272,9 +1706,18 @@ def main():
     parser = build_cli_parser()
     args, unknown = parser.parse_known_args()
 
+    # If CLI action arguments are passed, attach to parent console
+    cli_action_invoked = args.gather or args.to_cursor or (args.mon is not None)
+    if cli_action_invoked:
+        attach_console()
+
     # Handle language override if provided
     if args.lang:
         set_language(args.lang)
+
+    # Handle theme override if provided
+    if args.theme:
+        set_theme(args.theme)
 
     # CLI command: Gather off-screen windows
     if args.gather:
