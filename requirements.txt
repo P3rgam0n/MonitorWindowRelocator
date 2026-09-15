@@ -1,0 +1,5 @@
+# Monitor Window Relocator - Dependencies
+# Note: Zero runtime dependencies are required when running main.py on Windows (uses standard library ctypes/tkinter).
+# The dependencies below are used for packaging standalone binaries and asset conversion:
+pyinstaller>=6.0.0
+pillow>=10.0.0
