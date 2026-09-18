@@ -54,6 +54,11 @@ try:
 except Exception:
     dwmapi = None
 
+try:
+    shell32 = ctypes.windll.shell32
+except Exception:
+    shell32 = None
+
 # Win32 Constants
 MONITOR_DEFAULTTONEAREST = 2
 SW_RESTORE = 9
@@ -80,6 +85,75 @@ VK_G = 0x47
 VK_1 = 0x31
 VK_2 = 0x32
 VK_3 = 0x33
+
+# System Tray & Notification Area Constants
+NIM_ADD = 0
+NIM_MODIFY = 1
+NIM_DELETE = 2
+NIF_MESSAGE = 0x0001
+NIF_ICON = 0x0002
+NIF_TIP = 0x0004
+WM_TRAYICON = 0x0400 + 20
+WM_LBUTTONUP = 0x0202
+WM_LBUTTONDBLCLK = 0x0203
+WM_RBUTTONUP = 0x0205
+WM_CONTEXTMENU = 0x007B
+NIN_SELECT = 0x0400
+
+LRESULT = ctypes.c_ssize_t
+WPARAM = wintypes.WPARAM
+LPARAM = wintypes.LPARAM
+UINT = wintypes.UINT
+HWND = wintypes.HWND
+
+user32.DefWindowProcW.argtypes = [HWND, UINT, WPARAM, LPARAM]
+user32.DefWindowProcW.restype = LRESULT
+WNDPROC = ctypes.WINFUNCTYPE(LRESULT, HWND, UINT, WPARAM, LPARAM)
+
+
+class WNDCLASSEXW(ctypes.Structure):
+    _fields_ = [
+        ('cbSize', wintypes.UINT),
+        ('style', wintypes.UINT),
+        ('lpfnWndProc', WNDPROC),
+        ('cbClsExtra', ctypes.c_int),
+        ('cbWndExtra', ctypes.c_int),
+        ('hInstance', wintypes.HINSTANCE),
+        ('hIcon', wintypes.HICON),
+        ('hCursor', wintypes.HICON),
+        ('hbrBackground', wintypes.HBRUSH),
+        ('lpszMenuName', wintypes.LPCWSTR),
+        ('lpszClassName', wintypes.LPCWSTR),
+        ('hIconSm', wintypes.HICON)
+    ]
+
+
+class NOTIFYICONDATAW(ctypes.Structure):
+    _fields_ = [
+        ('cbSize', wintypes.DWORD),
+        ('hWnd', wintypes.HWND),
+        ('uID', wintypes.UINT),
+        ('uFlags', wintypes.UINT),
+        ('uCallbackMessage', wintypes.UINT),
+        ('hIcon', wintypes.HICON),
+        ('szTip', wintypes.WCHAR * 128),
+        ('dwState', wintypes.DWORD),
+        ('dwStateMask', wintypes.DWORD),
+        ('szInfo', wintypes.WCHAR * 256),
+        ('uTimeoutOrVersion', wintypes.UINT),
+        ('szInfoTitle', wintypes.WCHAR * 64),
+        ('dwInfoFlags', wintypes.DWORD),
+        ('guidItem', ctypes.c_byte * 16),
+        ('hBalloonIcon', wintypes.HICON)
+    ]
+
+
+if shell32:
+    try:
+        shell32.Shell_NotifyIconW.argtypes = [wintypes.DWORD, ctypes.c_void_p]
+        shell32.Shell_NotifyIconW.restype = wintypes.BOOL
+    except Exception:
+        pass
 
 
 class POINT(ctypes.Structure):
@@ -289,7 +363,7 @@ def attach_console():
 # ============================================================================
 
 APP_NAME = "Monitor Window Relocator"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
@@ -306,38 +380,38 @@ THEMES = {
 
 THEME_PALETTES = {
     "dark": {
-        "bg_main": "#1e1e24",
-        "bg_card": "#282a36",
-        "bg_input": "#181920",
+        "bg_main": "#0f172a",
+        "bg_card": "#1e293b",
+        "bg_input": "#0f172a",
         "fg_primary": "#f8fafc",
         "fg_secondary": "#94a3b8",
-        "fg_accent": "#60a5fa",
-        "btn_bg": "#333745",
+        "fg_accent": "#38bdf8",
+        "btn_bg": "#334155",
         "btn_fg": "#f8fafc",
-        "btn_hover": "#3f4455",
-        "btn_active": "#4b5166",
-        "btn_primary_bg": "#2563eb",
+        "btn_hover": "#475569",
+        "btn_active": "#1e293b",
+        "btn_primary_bg": "#0284c7",
         "btn_primary_fg": "#ffffff",
-        "btn_primary_hover": "#1d4ed8",
-        "btn_primary_active": "#1e40af",
-        "tree_bg": "#181920",
+        "btn_primary_hover": "#0369a1",
+        "btn_primary_active": "#075985",
+        "tree_bg": "#0f172a",
         "tree_fg": "#f1f5f9",
-        "tree_fieldbg": "#181920",
-        "tree_heading_bg": "#282a36",
+        "tree_fieldbg": "#0f172a",
+        "tree_heading_bg": "#1e293b",
         "tree_heading_fg": "#f8fafc",
-        "tree_selected_bg": "#3d59a1",
+        "tree_selected_bg": "#0284c7",
         "tree_selected_fg": "#ffffff",
-        "border_color": "#3e4451",
-        "scrollbar_bg": "#333745",
-        "scrollbar_trough": "#1e1e24",
-        "menu_bg": "#282a36",
+        "border_color": "#334155",
+        "scrollbar_bg": "#334155",
+        "scrollbar_trough": "#0f172a",
+        "menu_bg": "#1e293b",
         "menu_fg": "#f8fafc",
-        "menu_active_bg": "#3d59a1",
+        "menu_active_bg": "#0284c7",
         "menu_active_fg": "#ffffff",
         "status_fg": "#38bdf8",
-        "combobox_bg": "#333745",
+        "combobox_bg": "#334155",
         "combobox_fg": "#f8fafc",
-        "combobox_field": "#181920"
+        "combobox_field": "#0f172a"
     },
     "light": {
         "bg_main": "#f4f6f9",
@@ -345,30 +419,30 @@ THEME_PALETTES = {
         "bg_input": "#ffffff",
         "fg_primary": "#0f172a",
         "fg_secondary": "#64748b",
-        "fg_accent": "#2563eb",
+        "fg_accent": "#0284c7",
         "btn_bg": "#e2e8f0",
         "btn_fg": "#0f172a",
         "btn_hover": "#cbd5e1",
         "btn_active": "#94a3b8",
-        "btn_primary_bg": "#2563eb",
+        "btn_primary_bg": "#0284c7",
         "btn_primary_fg": "#ffffff",
-        "btn_primary_hover": "#1d4ed8",
-        "btn_primary_active": "#1e40af",
+        "btn_primary_hover": "#0369a1",
+        "btn_primary_active": "#075985",
         "tree_bg": "#ffffff",
         "tree_fg": "#0f172a",
         "tree_fieldbg": "#ffffff",
         "tree_heading_bg": "#e2e8f0",
         "tree_heading_fg": "#0f172a",
-        "tree_selected_bg": "#2563eb",
+        "tree_selected_bg": "#0284c7",
         "tree_selected_fg": "#ffffff",
         "border_color": "#cbd5e1",
         "scrollbar_bg": "#cbd5e1",
         "scrollbar_trough": "#f1f5f9",
         "menu_bg": "#ffffff",
         "menu_fg": "#0f172a",
-        "menu_active_bg": "#2563eb",
+        "menu_active_bg": "#0284c7",
         "menu_active_fg": "#ffffff",
-        "status_fg": "#2563eb",
+        "status_fg": "#0284c7",
         "combobox_bg": "#e2e8f0",
         "combobox_fg": "#0f172a",
         "combobox_field": "#ffffff"
@@ -411,6 +485,10 @@ TRANSLATIONS = {
         # Bottom Controls & Status
         "btn_refresh": "🔄 Refresh Window List",
         "btn_move_selected": "🎯 Move Selected Window to Mouse",
+        "btn_minimize_tray": "📥 Minimize to Tray",
+        "tray_menu_show": "🖥️ Show Window",
+        "tray_menu_exit": "❌ Exit",
+        "tray_tooltip": "Monitor Window Relocator",
         "status_ready": "Ready",
         "status_moved_to_cursor": "Moved active window to screen under mouse cursor.",
         "status_no_active_window": "No active window to move.",
@@ -419,6 +497,7 @@ TRANSLATIONS = {
         "status_move_failed": "Failed to move window.",
         "status_moved_selected": "Moved '{title}' to Monitor {index}.",
         "status_hotkey_triggered": "Hotkey triggered: {name}",
+        "status_minimized_to_tray": "Application minimized to system tray.",
 
         # Dialogs & Menus
         "dialog_info_title": "Information",
@@ -485,6 +564,10 @@ TRANSLATIONS = {
         # Bottom Controls & Status
         "btn_refresh": "🔄 Odśwież listę okien",
         "btn_move_selected": "🎯 Przenieś zaznaczone okno do myszy",
+        "btn_minimize_tray": "📥 Do Zasobnika (Tray)",
+        "tray_menu_show": "🖥️ Pokaż okno",
+        "tray_menu_exit": "❌ Zakończ",
+        "tray_tooltip": "Monitor Window Relocator",
         "status_ready": "Gotowy",
         "status_moved_to_cursor": "Przeniesiono aktywne okno na ekran z kursorem myszy.",
         "status_no_active_window": "Brak aktywnego okna do przeniesienia.",
@@ -493,6 +576,7 @@ TRANSLATIONS = {
         "status_move_failed": "Nie udało się przenieść okna.",
         "status_moved_selected": "Przeniesiono '{title}' na Monitor {index}.",
         "status_hotkey_triggered": "Uruchomiono skrót: {name}",
+        "status_minimized_to_tray": "Aplikacja zminimalizowana do zasobnika systemowego.",
 
         # Dialogs & Menus
         "dialog_info_title": "Informacja",
@@ -528,6 +612,7 @@ TRANSLATIONS = {
 
 _current_lang = "en"
 _current_theme = "system"
+_minimize_to_tray_on_close = False
 
 
 def detect_system_language():
@@ -568,9 +653,21 @@ def get_effective_theme():
     return _current_theme if _current_theme in ("dark", "light") else "dark"
 
 
+def get_minimize_to_tray():
+    """Returns whether close action should minimize application to system tray."""
+    return _minimize_to_tray_on_close
+
+
+def set_minimize_to_tray(enabled):
+    """Sets whether close action should minimize application to system tray and saves config."""
+    global _minimize_to_tray_on_close
+    _minimize_to_tray_on_close = bool(enabled)
+    save_config()
+
+
 def load_config():
-    """Loads configuration including language and theme preferences, or auto-detects system defaults."""
-    global _current_lang, _current_theme
+    """Loads configuration including language, theme preferences, and tray settings."""
+    global _current_lang, _current_theme, _minimize_to_tray_on_close
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -581,19 +678,23 @@ def load_config():
                 theme = data.get("theme")
                 if theme in THEMES:
                     _current_theme = theme
+                if "minimize_to_tray" in data:
+                    _minimize_to_tray_on_close = bool(data["minimize_to_tray"])
                 return
         except Exception:
             pass
     _current_lang = detect_system_language()
     _current_theme = "system"
+    _minimize_to_tray_on_close = False
 
 
 def save_config():
-    """Saves language and theme preferences to config.json."""
+    """Saves language, theme preferences, and tray settings to config.json."""
     try:
         data = {
             "language": _current_lang,
-            "theme": _current_theme
+            "theme": _current_theme,
+            "minimize_to_tray": _minimize_to_tray_on_close
         }
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
@@ -1109,6 +1210,181 @@ class HotkeyManager:
 
 
 # ============================================================================
+# Section 4b: Windows System Tray (Notification Area) Manager
+# ============================================================================
+
+class TrayIconManager:
+    """Zero-dependency Windows System Tray (Notification Area) Manager via Win32 API."""
+
+    def __init__(self, on_restore_callback=None, on_context_menu_callback=None, tooltip=APP_NAME):
+        self.on_restore = on_restore_callback
+        self.on_context_menu = on_context_menu_callback
+        self.tooltip = tooltip
+        self.running = False
+        self.thread = None
+        self.hwnd = None
+        self.hicon = None
+        self.class_name = f"MonitorWindowRelocatorTray_{os.getpid()}_{id(self)}"
+        self.wndproc_ref = None
+        self.is_added = False
+        self._class_atom = None
+        self._lock = threading.Lock()
+
+    def start(self):
+        """Starts the tray icon message loop thread."""
+        with self._lock:
+            if self.running:
+                return
+            self.running = True
+            self.thread = threading.Thread(target=self._run_loop, daemon=True)
+            self.thread.start()
+
+    def stop(self):
+        """Cleanly removes tray icon and terminates background thread."""
+        with self._lock:
+            if not self.running:
+                return
+            self.running = False
+            if self.hwnd:
+                try:
+                    user32.PostMessageW(self.hwnd, 0x0012, 0, 0)  # WM_QUIT
+                except Exception:
+                    pass
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=1.0)
+
+    def update_tooltip(self, text):
+        """Updates the tray icon tooltip text dynamically."""
+        self.tooltip = text
+        if self.is_added and shell32 and self.hwnd:
+            try:
+                nid = NOTIFYICONDATAW()
+                nid.cbSize = ctypes.sizeof(NOTIFYICONDATAW)
+                nid.hWnd = self.hwnd
+                nid.uID = 1
+                nid.uFlags = NIF_TIP
+                nid.szTip = text[:127]
+                shell32.Shell_NotifyIconW(NIM_MODIFY, ctypes.byref(nid))
+            except Exception:
+                pass
+
+    def _run_loop(self):
+        ensure_input_desktop()
+        hinst = kernel32.GetModuleHandleW(None)
+
+        def _wndproc(hwnd, msg, wparam, lparam):
+            if msg == WM_TRAYICON:
+                if lparam in (WM_LBUTTONUP, WM_LBUTTONDBLCLK, NIN_SELECT):
+                    if self.on_restore:
+                        try:
+                            self.on_restore()
+                        except Exception:
+                            pass
+                    return 0
+                elif lparam in (WM_RBUTTONUP, WM_CONTEXTMENU):
+                    if self.on_context_menu:
+                        try:
+                            pt = wintypes.POINT()
+                            user32.GetCursorPos(ctypes.byref(pt))
+                            self.on_context_menu(pt.x, pt.y)
+                        except Exception:
+                            pass
+                    return 0
+            elif msg == 0x0002:  # WM_DESTROY
+                user32.PostQuitMessage(0)
+                return 0
+            return user32.DefWindowProcW(hwnd, msg, wparam, lparam)
+
+        self.wndproc_ref = WNDPROC(_wndproc)
+        wc = WNDCLASSEXW()
+        wc.cbSize = ctypes.sizeof(WNDCLASSEXW)
+        wc.lpfnWndProc = self.wndproc_ref
+        wc.hInstance = hinst
+        wc.lpszClassName = self.class_name
+
+        try:
+            self._class_atom = user32.RegisterClassExW(ctypes.byref(wc))
+        except Exception:
+            self._class_atom = None
+
+        self.hwnd = user32.CreateWindowExW(
+            0, self.class_name, "MWR_TrayWindow",
+            0, 0, 0, 0, 0, None, None, hinst, None
+        )
+
+        ico_path = get_asset_path("icon.ico")
+        if os.path.exists(ico_path):
+            try:
+                self.hicon = user32.LoadImageW(None, ico_path, 1, 16, 16, 0x00000010)
+            except Exception:
+                self.hicon = None
+
+        if not self.hicon:
+            try:
+                # Fallback to standard application icon
+                self.hicon = user32.LoadIconW(None, 32512)
+            except Exception:
+                self.hicon = None
+
+        if self.hwnd and shell32:
+            try:
+                nid = NOTIFYICONDATAW()
+                nid.cbSize = ctypes.sizeof(NOTIFYICONDATAW)
+                nid.hWnd = self.hwnd
+                nid.uID = 1
+                nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP
+                nid.uCallbackMessage = WM_TRAYICON
+                nid.hIcon = self.hicon if self.hicon else 0
+                nid.szTip = self.tooltip[:127]
+                self.is_added = bool(shell32.Shell_NotifyIconW(NIM_ADD, ctypes.byref(nid)))
+            except Exception:
+                self.is_added = False
+
+        msg = wintypes.MSG()
+        try:
+            while self.running:
+                if user32.PeekMessageW(ctypes.byref(msg), self.hwnd, 0, 0, 1):
+                    if msg.message == 0x0012:  # WM_QUIT
+                        break
+                    user32.TranslateMessage(ctypes.byref(msg))
+                    user32.DispatchMessageW(ctypes.byref(msg))
+                else:
+                    time.sleep(0.05)
+        finally:
+            if self.is_added and shell32 and self.hwnd:
+                try:
+                    del_nid = NOTIFYICONDATAW()
+                    del_nid.cbSize = ctypes.sizeof(NOTIFYICONDATAW)
+                    del_nid.hWnd = self.hwnd
+                    del_nid.uID = 1
+                    shell32.Shell_NotifyIconW(NIM_DELETE, ctypes.byref(del_nid))
+                except Exception:
+                    pass
+                self.is_added = False
+
+            if self.hicon:
+                try:
+                    user32.DestroyIcon(self.hicon)
+                except Exception:
+                    pass
+                self.hicon = None
+
+            if self.hwnd:
+                try:
+                    user32.DestroyWindow(self.hwnd)
+                except Exception:
+                    pass
+                self.hwnd = None
+
+            if self._class_atom:
+                try:
+                    user32.UnregisterClassW(self.class_name, hinst)
+                except Exception:
+                    pass
+                self._class_atom = None
+
+
+# ============================================================================
 # Section 5: Tkinter Graphical User Interface (GUI)
 # ============================================================================
 
@@ -1124,12 +1400,23 @@ class WindowRelocatorApp:
         self.style = ttk.Style()
         self.style.theme_use('clam')
 
+        self._force_quit = False
+        self.tray_menu = None
+
         # Set application window icon
         self._set_app_icon()
 
         # Initialize hotkey manager
         self.hotkey_mgr = HotkeyManager(on_hotkey_triggered_callback=self._on_hotkey_triggered)
         self.hotkey_mgr.start()
+
+        # Initialize and start System Tray Manager
+        self.tray_mgr = TrayIconManager(
+            on_restore_callback=lambda: self.root.after(0, self.restore_from_tray),
+            on_context_menu_callback=lambda x, y: self.root.after(0, lambda: self._show_tray_menu(x, y)),
+            tooltip=f"{APP_NAME} v{APP_VERSION}"
+        )
+        self.tray_mgr.start()
 
         self._create_widgets()
         self.apply_theme()
@@ -1205,20 +1492,20 @@ class WindowRelocatorApp:
         self.status_lf = ttk.LabelFrame(self.main_frame, padding=10)
         self.status_lf.pack(fill=tk.X, pady=(0, 10))
 
-        self.lbl_monitors = ttk.Label(self.status_lf, font=("Segoe UI", 9))
+        self.lbl_monitors = ttk.Label(self.status_lf, style="Card.TLabel", font=("Segoe UI", 9))
         self.lbl_monitors.pack(anchor="w", pady=2)
 
-        self.lbl_cursor = ttk.Label(self.status_lf, font=("Segoe UI", 9))
+        self.lbl_cursor = ttk.Label(self.status_lf, style="Card.TLabel", font=("Segoe UI", 9))
         self.lbl_cursor.pack(anchor="w", pady=2)
 
-        self.lbl_active = ttk.Label(self.status_lf, font=("Segoe UI", 9, "bold"))
+        self.lbl_active = ttk.Label(self.status_lf, style="Card.TLabel", font=("Segoe UI", 9, "bold"))
         self.lbl_active.pack(anchor="w", pady=2)
 
         # Quick Actions Frame
         self.actions_lf = ttk.LabelFrame(self.main_frame, padding=10)
         self.actions_lf.pack(fill=tk.X, pady=(0, 10))
 
-        btn_box1 = ttk.Frame(self.actions_lf)
+        btn_box1 = ttk.Frame(self.actions_lf, style="Card.TFrame")
         btn_box1.pack(fill=tk.X, pady=2)
 
         self.btn_cursor = ttk.Button(btn_box1, style="Primary.TButton", command=self.cmd_move_to_cursor)
@@ -1227,10 +1514,10 @@ class WindowRelocatorApp:
         self.btn_gather = ttk.Button(btn_box1, style="Primary.TButton", command=self.cmd_gather)
         self.btn_gather.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-        btn_box2 = ttk.Frame(self.actions_lf)
+        btn_box2 = ttk.Frame(self.actions_lf, style="Card.TFrame")
         btn_box2.pack(fill=tk.X, pady=(6, 0))
 
-        self.lbl_mon_sel = ttk.Label(btn_box2, font=("Segoe UI", 9, "bold"))
+        self.lbl_mon_sel = ttk.Label(btn_box2, style="Card.TLabel", font=("Segoe UI", 9, "bold"))
         self.lbl_mon_sel.pack(side=tk.LEFT, padx=(0, 10))
 
         self.btn_mon1 = ttk.Button(btn_box2, command=lambda: self.cmd_move_to_mon(1))
@@ -1272,6 +1559,9 @@ class WindowRelocatorApp:
 
         self.btn_move_sel = ttk.Button(bottom_bar, command=self.cmd_move_selected_to_cursor)
         self.btn_move_sel.pack(side=tk.LEFT, padx=10)
+
+        self.btn_minimize_tray = ttk.Button(bottom_bar, command=self.minimize_to_tray)
+        self.btn_minimize_tray.pack(side=tk.LEFT)
 
         self.lbl_status_bar = ttk.Label(bottom_bar, font=("Segoe UI", 9, "italic"))
         self.lbl_status_bar.pack(side=tk.RIGHT)
@@ -1404,6 +1694,16 @@ class WindowRelocatorApp:
             self.lbl_active.configure(foreground=pal["fg_accent"])
         if hasattr(self, 'lbl_status_bar'):
             self.lbl_status_bar.configure(foreground=pal["status_fg"])
+        if hasattr(self, 'tray_menu') and self.tray_menu:
+            try:
+                self.tray_menu.configure(
+                    bg=pal["menu_bg"],
+                    fg=pal["menu_fg"],
+                    activebackground=pal["menu_active_bg"],
+                    activeforeground=pal["menu_active_fg"]
+                )
+            except Exception:
+                pass
 
         # Apply immersive dark title bar on Windows 10/11
         self.root.update_idletasks()
@@ -1476,6 +1776,10 @@ class WindowRelocatorApp:
 
         self.btn_refresh.config(text=t("btn_refresh"))
         self.btn_move_sel.config(text=t("btn_move_selected"))
+        if hasattr(self, 'btn_minimize_tray'):
+            self.btn_minimize_tray.config(text=t("btn_minimize_tray"))
+        if hasattr(self, 'tray_mgr') and self.tray_mgr:
+            self.tray_mgr.update_tooltip(f"{APP_NAME} v{APP_VERSION}")
         self.lbl_status_bar.config(text=t("status_ready"))
 
     def refresh_all(self):
@@ -1589,9 +1893,74 @@ class WindowRelocatorApp:
         self.root.after(0, lambda: self.set_status(t("status_hotkey_triggered", name=hotkey_name)))
         self.root.after(400, self.refresh_all)
 
+    def minimize_to_tray(self):
+        """Minimizes and hides application to the system tray."""
+        self.root.withdraw()
+        self.set_status(t("status_minimized_to_tray"))
+
+    def restore_from_tray(self):
+        """Restores application window from system tray and focuses it."""
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+
+    def _show_tray_menu(self, x, y):
+        """Displays context menu for the system tray icon with active theme colors."""
+        try:
+            pal = THEME_PALETTES.get(get_effective_theme(), THEME_PALETTES["dark"])
+            if self.tray_menu is None:
+                self.tray_menu = tk.Menu(self.root, tearoff=0)
+            self.tray_menu.delete(0, tk.END)
+            self.tray_menu.configure(
+                bg=pal["menu_bg"],
+                fg=pal["menu_fg"],
+                activebackground=pal["menu_active_bg"],
+                activeforeground=pal["menu_active_fg"],
+                activeborderwidth=0,
+                bd=1,
+                font=("Segoe UI", 9)
+            )
+            self.tray_menu.add_command(
+                label=t("tray_menu_show"),
+                command=self.restore_from_tray
+            )
+            self.tray_menu.add_separator()
+            self.tray_menu.add_command(
+                label=t("btn_move_to_cursor"),
+                command=self.cmd_move_to_cursor
+            )
+            self.tray_menu.add_command(
+                label=t("btn_gather_offscreen"),
+                command=self.cmd_gather
+            )
+            self.tray_menu.add_separator()
+            self.tray_menu.add_command(
+                label=t("tray_menu_exit"),
+                command=self.cmd_tray_exit
+            )
+            self.tray_menu.tk_popup(x, y)
+        except Exception:
+            pass
+        finally:
+            try:
+                self.tray_menu.grab_release()
+            except Exception:
+                pass
+
+    def cmd_tray_exit(self):
+        """Explicit exit from tray menu bypassing minimize_to_tray_on_close."""
+        self._force_quit = True
+        self.on_closing()
+
     def on_closing(self):
-        """Stops background hotkey thread and exits cleanly."""
-        self.hotkey_mgr.stop()
+        """Stops background hotkey thread, tray icon, and exits cleanly."""
+        if _minimize_to_tray_on_close and not self._force_quit:
+            self.minimize_to_tray()
+            return
+        if hasattr(self, 'tray_mgr') and self.tray_mgr:
+            self.tray_mgr.stop()
+        if hasattr(self, 'hotkey_mgr') and self.hotkey_mgr:
+            self.hotkey_mgr.stop()
         self.root.destroy()
 
 

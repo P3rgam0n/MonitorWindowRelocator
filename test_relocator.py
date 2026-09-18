@@ -322,6 +322,22 @@ class TestI18nAndConfig(unittest.TestCase):
                 self.assertEqual(main.get_language(), 'en')
                 self.assertEqual(main.get_theme(), 'system')
 
+    def test_config_minimize_to_tray_persistence(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_config = os.path.join(tmpdir, "config.json")
+            with patch.object(main, 'CONFIG_FILE', temp_config):
+                main.set_minimize_to_tray(True)
+                self.assertTrue(main.get_minimize_to_tray())
+                self.assertTrue(os.path.exists(temp_config))
+
+                # Reload
+                main.load_config()
+                self.assertTrue(main.get_minimize_to_tray())
+
+                # Disable
+                main.set_minimize_to_tray(False)
+                self.assertFalse(main.get_minimize_to_tray())
+
 
 class TestThemeSubsystem(unittest.TestCase):
     """Tests for theme detection, theme configuration, and palette definitions."""
@@ -346,6 +362,13 @@ class TestThemeSubsystem(unittest.TestCase):
         for k in expected_keys:
             self.assertIn(k, dark_pal, f"Missing key '{k}' in dark palette")
             self.assertIn(k, light_pal, f"Missing key '{k}' in light palette")
+
+    def test_dark_theme_modern_palette_values(self):
+        dark_pal = main.THEME_PALETTES["dark"]
+        self.assertEqual(dark_pal["bg_main"], "#0f172a")
+        self.assertEqual(dark_pal["bg_card"], "#1e293b")
+        self.assertEqual(dark_pal["border_color"], "#334155")
+        self.assertEqual(dark_pal["fg_accent"], "#38bdf8")
 
     def test_set_and_get_theme(self):
         main.set_theme("dark")
@@ -518,8 +541,50 @@ class TestHotkeyManager(unittest.TestCase):
         self.assertFalse(mgr.thread.is_alive())
 
 
+class TestTrayManager(unittest.TestCase):
+    """Tests for Win32 System Tray Manager lifecycle, tooltips, and callback mechanisms."""
+
+    def test_tray_manager_initialization(self):
+        restored = []
+        context_opened = []
+        mgr = main.TrayIconManager(
+            on_restore_callback=lambda: restored.append(True),
+            on_context_menu_callback=lambda x, y: context_opened.append((x, y)),
+            tooltip="Test Tooltip"
+        )
+        self.assertFalse(mgr.running)
+        self.assertEqual(mgr.tooltip, "Test Tooltip")
+        self.assertIsNone(mgr.hwnd)
+
+    def test_tray_manager_lifecycle(self):
+        mgr = main.TrayIconManager(tooltip="Lifecycle Test")
+        self.assertFalse(mgr.running)
+        mgr.start()
+        self.assertTrue(mgr.running)
+        self.assertIsNotNone(mgr.thread)
+        self.assertTrue(mgr.thread.is_alive())
+
+        # Update tooltip
+        mgr.update_tooltip("Updated Tooltip")
+        self.assertEqual(mgr.tooltip, "Updated Tooltip")
+
+        mgr.stop()
+        self.assertFalse(mgr.running)
+        self.assertFalse(mgr.thread.is_alive())
+
+    def test_tray_manager_graceful_degradation_without_shell32(self):
+        with patch.object(main, 'shell32', None):
+            mgr = main.TrayIconManager(tooltip="Degradation Test")
+            mgr.start()
+            self.assertTrue(mgr.running)
+            self.assertFalse(mgr.is_added)
+            mgr.update_tooltip("New Tooltip")
+            mgr.stop()
+            self.assertFalse(mgr.running)
+
+
 class TestGuiApp(unittest.TestCase):
-    """Tests for GUI initialization, widget setup, theme/language changes via header switchers, and clean close."""
+    """Tests for GUI initialization, widget setup, theme/language changes via header switchers, tray integration, and clean close."""
 
     def test_gui_initialization_and_close(self):
         import tkinter as tk
@@ -529,6 +594,8 @@ class TestGuiApp(unittest.TestCase):
             self.assertIsNotNone(app.tree)
             self.assertIsNotNone(app.combo_theme)
             self.assertIsNotNone(app.combo_lang)
+            self.assertIsNotNone(app.btn_minimize_tray)
+            self.assertIsNotNone(app.tray_mgr)
             self.assertIn("Monitor Window Relocator", root.title())
 
             # Test switching themes dynamically via header dropdown
@@ -544,6 +611,19 @@ class TestGuiApp(unittest.TestCase):
             self.assertEqual(main.get_language(), "pl")
             app.on_language_change("en")
             self.assertEqual(main.get_language(), "en")
+
+            # Test minimize to tray and restore from tray
+            app.minimize_to_tray()
+            self.assertEqual(root.state(), "withdrawn")
+            app.restore_from_tray()
+            self.assertEqual(root.state(), "normal")
+
+            # Test tray context menu creation
+            with patch.object(tk.Menu, 'tk_popup') as mock_popup:
+                app._show_tray_menu(50, 50)
+                mock_popup.assert_called_once_with(50, 50)
+            self.assertIsNotNone(app.tray_menu)
+            self.assertGreater(app.tray_menu.index("end"), 0)
 
             app.on_closing()
         except Exception:
