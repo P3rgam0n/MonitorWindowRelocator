@@ -365,10 +365,12 @@ class TestThemeSubsystem(unittest.TestCase):
 
     def test_dark_theme_modern_palette_values(self):
         dark_pal = main.THEME_PALETTES["dark"]
-        self.assertEqual(dark_pal["bg_main"], "#0f172a")
-        self.assertEqual(dark_pal["bg_card"], "#1e293b")
-        self.assertEqual(dark_pal["border_color"], "#334155")
-        self.assertEqual(dark_pal["fg_accent"], "#38bdf8")
+        self.assertEqual(dark_pal["bg_main"], "#121212")
+        self.assertEqual(dark_pal["bg_card"], "#1e1e1e")
+        self.assertEqual(dark_pal["border_color"], "#2a2a2a")
+        self.assertEqual(dark_pal["btn_primary_bg"], "#2563eb")
+        self.assertEqual(dark_pal["fg_primary"], "#e0e0e0")
+        self.assertEqual(dark_pal["tree_heading_bg"], "#232323")
 
     def test_set_and_get_theme(self):
         main.set_theme("dark")
@@ -617,6 +619,22 @@ class TestGuiApp(unittest.TestCase):
             self.assertEqual(root.state(), "withdrawn")
             app.restore_from_tray()
             self.assertEqual(root.state(), "normal")
+
+            # Test window minimize unmap event handler
+            root.iconify()
+            mock_unmap_event = MagicMock()
+            mock_unmap_event.widget = root
+            app._on_window_unmap(mock_unmap_event)
+            self.assertEqual(root.state(), "withdrawn")
+            app.restore_from_tray()
+
+            # Test treeview hover handlers
+            mock_motion_event = MagicMock()
+            mock_motion_event.y = 10
+            with patch.object(app.tree, 'identify_row', return_value=''):
+                app._on_tree_motion(mock_motion_event)
+            app._on_tree_leave()
+            self.assertIsNone(app._last_hover_item)
 
             # Test tray context menu creation
             with patch.object(tk.Menu, 'tk_popup') as mock_popup:

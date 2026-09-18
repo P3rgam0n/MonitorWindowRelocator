@@ -363,7 +363,7 @@ def attach_console():
 # ============================================================================
 
 APP_NAME = "Monitor Window Relocator"
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.0"
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
@@ -380,38 +380,39 @@ THEMES = {
 
 THEME_PALETTES = {
     "dark": {
-        "bg_main": "#0f172a",
-        "bg_card": "#1e293b",
-        "bg_input": "#0f172a",
-        "fg_primary": "#f8fafc",
-        "fg_secondary": "#94a3b8",
-        "fg_accent": "#38bdf8",
-        "btn_bg": "#334155",
-        "btn_fg": "#f8fafc",
-        "btn_hover": "#475569",
-        "btn_active": "#1e293b",
-        "btn_primary_bg": "#0284c7",
+        "bg_main": "#121212",
+        "bg_card": "#1e1e1e",
+        "bg_input": "#181818",
+        "fg_primary": "#e0e0e0",
+        "fg_secondary": "#9e9e9e",
+        "fg_accent": "#e0e0e0",
+        "btn_bg": "#2a2a2a",
+        "btn_fg": "#e0e0e0",
+        "btn_hover": "#383838",
+        "btn_active": "#1f1f1f",
+        "btn_primary_bg": "#2563eb",
         "btn_primary_fg": "#ffffff",
-        "btn_primary_hover": "#0369a1",
-        "btn_primary_active": "#075985",
-        "tree_bg": "#0f172a",
-        "tree_fg": "#f1f5f9",
-        "tree_fieldbg": "#0f172a",
-        "tree_heading_bg": "#1e293b",
-        "tree_heading_fg": "#f8fafc",
-        "tree_selected_bg": "#0284c7",
+        "btn_primary_hover": "#1d4ed8",
+        "btn_primary_active": "#1e40af",
+        "tree_bg": "#181818",
+        "tree_fg": "#e0e0e0",
+        "tree_fieldbg": "#181818",
+        "tree_heading_bg": "#232323",
+        "tree_heading_fg": "#e0e0e0",
+        "tree_selected_bg": "#2563eb",
         "tree_selected_fg": "#ffffff",
-        "border_color": "#334155",
-        "scrollbar_bg": "#334155",
-        "scrollbar_trough": "#0f172a",
-        "menu_bg": "#1e293b",
-        "menu_fg": "#f8fafc",
-        "menu_active_bg": "#0284c7",
+        "tree_hover_bg": "#252525",
+        "border_color": "#2a2a2a",
+        "scrollbar_bg": "#3a3a3a",
+        "scrollbar_trough": "#181818",
+        "menu_bg": "#1e1e1e",
+        "menu_fg": "#e0e0e0",
+        "menu_active_bg": "#2563eb",
         "menu_active_fg": "#ffffff",
-        "status_fg": "#38bdf8",
-        "combobox_bg": "#334155",
-        "combobox_fg": "#f8fafc",
-        "combobox_field": "#0f172a"
+        "status_fg": "#9e9e9e",
+        "combobox_bg": "#2a2a2a",
+        "combobox_fg": "#e0e0e0",
+        "combobox_field": "#181818"
     },
     "light": {
         "bg_main": "#f4f6f9",
@@ -435,6 +436,7 @@ THEME_PALETTES = {
         "tree_heading_fg": "#0f172a",
         "tree_selected_bg": "#0284c7",
         "tree_selected_fg": "#ffffff",
+        "tree_hover_bg": "#e2e8f0",
         "border_color": "#cbd5e1",
         "scrollbar_bg": "#cbd5e1",
         "scrollbar_trough": "#f1f5f9",
@@ -1402,6 +1404,7 @@ class WindowRelocatorApp:
 
         self._force_quit = False
         self.tray_menu = None
+        self._last_hover_item = None
 
         # Set application window icon
         self._set_app_icon()
@@ -1424,6 +1427,7 @@ class WindowRelocatorApp:
         self.refresh_all()
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        self.root.bind("<Unmap>", self._on_window_unmap)
 
     def _set_app_icon(self):
         """Loads and applies multi-resolution icon to Tkinter window."""
@@ -1549,6 +1553,8 @@ class WindowRelocatorApp:
 
         # Double-click to move selected window to mouse cursor
         self.tree.bind("<Double-1>", lambda event: self.cmd_move_selected_to_cursor())
+        self.tree.bind("<Motion>", self._on_tree_motion)
+        self.tree.bind("<Leave>", self._on_tree_leave)
 
         # Bottom control bar
         bottom_bar = ttk.Frame(self.main_frame)
@@ -1565,6 +1571,24 @@ class WindowRelocatorApp:
 
         self.lbl_status_bar = ttk.Label(bottom_bar, font=("Segoe UI", 9, "italic"))
         self.lbl_status_bar.pack(side=tk.RIGHT)
+
+    def _on_tree_motion(self, event):
+        """Highlights row under mouse cursor with subtle hover background."""
+        item = self.tree.identify_row(event.y)
+        last_item = getattr(self, '_last_hover_item', None)
+        if item != last_item:
+            if last_item and self.tree.exists(last_item):
+                self.tree.item(last_item, tags=())
+            if item and self.tree.exists(item):
+                self.tree.item(item, tags=('hover',))
+            self._last_hover_item = item
+
+    def _on_tree_leave(self, event=None):
+        """Clears row hover highlight when mouse leaves Treeview."""
+        last_item = getattr(self, '_last_hover_item', None)
+        if last_item and self.tree.exists(last_item):
+            self.tree.item(last_item, tags=())
+        self._last_hover_item = None
 
     def apply_theme(self, theme_name=None):
         """Configures ttk styles and palette colors for the entire application interface."""
@@ -1587,9 +1611,22 @@ class WindowRelocatorApp:
         s.configure('TLabel', background=pal["bg_main"], foreground=pal["fg_primary"])
         s.configure('Card.TLabel', background=pal["bg_card"], foreground=pal["fg_primary"])
 
-        # LabelFrame styles
-        s.configure('TLabelframe', background=pal["bg_card"], bordercolor=pal["border_color"])
-        s.configure('TLabelframe.Label', background=pal["bg_card"], foreground=pal["fg_accent"], font=("Segoe UI", 9, "bold"))
+        # LabelFrame styles (card styling)
+        s.configure(
+            'TLabelframe',
+            background=pal["bg_card"],
+            bordercolor=pal["border_color"],
+            lightcolor=pal["border_color"],
+            darkcolor=pal["border_color"],
+            relief='solid',
+            borderwidth=1
+        )
+        s.configure(
+            'TLabelframe.Label',
+            background=pal["bg_card"],
+            foreground=pal["fg_accent"],
+            font=("Segoe UI", 9, "bold")
+        )
 
         # Standard Button style
         s.configure(
@@ -1600,6 +1637,8 @@ class WindowRelocatorApp:
             lightcolor=pal["btn_bg"],
             darkcolor=pal["btn_bg"],
             focuscolor=pal["btn_hover"],
+            relief='flat',
+            borderwidth=1,
             font=("Segoe UI", 9)
         )
         s.map(
@@ -1617,6 +1656,8 @@ class WindowRelocatorApp:
             lightcolor=pal["btn_primary_bg"],
             darkcolor=pal["btn_primary_bg"],
             focuscolor=pal["btn_primary_hover"],
+            relief='flat',
+            borderwidth=1,
             font=("Segoe UI", 9, "bold")
         )
         s.map(
@@ -1648,21 +1689,27 @@ class WindowRelocatorApp:
             background=pal["tree_bg"],
             foreground=pal["tree_fg"],
             fieldbackground=pal["tree_fieldbg"],
-            rowheight=26,
+            rowheight=28,
             bordercolor=pal["border_color"],
             lightcolor=pal["border_color"],
-            darkcolor=pal["border_color"]
+            darkcolor=pal["border_color"],
+            relief='flat',
+            borderwidth=1
         )
         s.configure(
             'Treeview.Heading',
             background=pal["tree_heading_bg"],
             foreground=pal["tree_heading_fg"],
+            bordercolor=pal["border_color"],
+            lightcolor=pal["tree_heading_bg"],
+            darkcolor=pal["tree_heading_bg"],
             relief='flat',
             font=("Segoe UI", 9, "bold")
         )
         s.map(
             'Treeview.Heading',
-            background=[('active', pal["btn_hover"])]
+            background=[('active', pal["btn_hover"])],
+            foreground=[('active', pal["fg_primary"])]
         )
         s.map(
             'Treeview',
@@ -1670,13 +1717,20 @@ class WindowRelocatorApp:
             foreground=[('selected', pal["tree_selected_fg"])]
         )
 
+        # Row hover styling
+        self.tree.tag_configure('hover', background=pal.get("tree_hover_bg", "#252525" if is_dark else "#e2e8f0"))
+
         # Scrollbar style
         s.configure(
             'Vertical.TScrollbar',
             background=pal["scrollbar_bg"],
             troughcolor=pal["scrollbar_trough"],
-            bordercolor=pal["border_color"],
-            arrowcolor=pal["fg_secondary"]
+            bordercolor=pal["scrollbar_trough"],
+            lightcolor=pal["scrollbar_bg"],
+            darkcolor=pal["scrollbar_bg"],
+            arrowcolor=pal["fg_secondary"],
+            relief='flat',
+            borderwidth=0
         )
 
         # Combobox dropdown popup listbox styling
@@ -1901,8 +1955,15 @@ class WindowRelocatorApp:
     def restore_from_tray(self):
         """Restores application window from system tray and focuses it."""
         self.root.deiconify()
+        self.root.state('normal')
         self.root.lift()
         self.root.focus_force()
+
+    def _on_window_unmap(self, event):
+        """Hides application from taskbar when minimized, keeping it active in system tray."""
+        if event.widget == self.root and self.root.state() == 'iconic':
+            self.root.withdraw()
+            self.set_status(t("status_minimized_to_tray"))
 
     def _show_tray_menu(self, x, y):
         """Displays context menu for the system tray icon with active theme colors."""

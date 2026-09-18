@@ -1,11 +1,11 @@
 # 🖥️ Monitor Window Relocator
 
-[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](VERSION)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-lightgrey.svg)](https://www.microsoft.com/windows)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Languages](https://img.shields.io/badge/languages-English%20%7C%20Polski-green.svg)](#-language-support--wsparcie-językowe)
-[![Theme](https://img.shields.io/badge/theme-Dark%20%7C%20Light%20%7C%20System-darkviolet.svg)](#-dark-theme--ciemny-motyw)
+[![Languages](https://img.shields.io/badge/languages-English%20%7C%20Polish-green.svg)](#-language-support)
+[![Theme](https://img.shields.io/badge/theme-Dark%20%7C%20Light%20%7C%20System-darkviolet.svg)](#-dark-theme)
 
 **Monitor Window Relocator** is a lightweight Windows utility that solves the multi-monitor problem where application windows open off-screen on powered-off, sleeping, or disconnected monitors (e.g., in 3-monitor setups).
 
@@ -20,7 +20,7 @@ It allows you to instantly pull any hidden or stranded window back to your activ
 ## 🚀 Key Features
 
 - **📥 Windows System Tray (Notification Area)**: Minimize to system tray with one click, right-click context menu (Show, Relocate, Gather, Exit), and single/double-click window restoration.
-- **🌙 Dark Theme & System Theme Integration**: Modern high-contrast dark theme, automatic Windows dark mode detection, and dynamic in-app theme switcher.
+- **🌙 Dark Theme & System Theme Integration**: Modern neutral dark theme, automatic Windows dark mode detection, and dynamic in-app theme switcher.
 - **🎨 Windows Immersive Dark Titlebar**: Uses Desktop Window Manager (DWM) Win32 API to render dark title bars natively on Windows 10 & 11.
 - **🖼️ Multi-Resolution Icon**: High-resolution branding icon with multi-layer Windows ICO packaging (16px to 256px).
 - **Instant Off-Screen Window Recovery**: Automatically scan all running windows and relocate any hidden/stranded windows to your primary monitor.
@@ -34,12 +34,12 @@ It allows you to instantly pull any hidden or stranded window back to your activ
 
 ---
 
-## 🌙 Dark Theme / Ciemny Motyw
+## 🌙 Dark Theme
 
 The application provides full support for Dark and Light themes:
-- **System Default (Domyślny systemowy)**: Automatically detects whether Windows is in Dark Mode or Light Mode.
-- **Dark Theme (Ciemny motyw)**: Sleek, high-contrast dark palette tailored for low-light environments.
-- **Light Theme (Jasny motyw)**: Clean, high-readability light palette.
+- **System Default**: Automatically detects whether Windows is in Dark Mode or Light Mode.
+- **Dark Theme**: Sleek, neutral dark palette tailored for low-light environments.
+- **Light Theme**: Clean, high-readability light palette.
 - Switch themes anytime using the **Theme dropdown** in the top-right corner of the window. Your preference is automatically saved to `config.json`.
 
 ---
@@ -114,7 +114,7 @@ To compile a standalone, single-file Windows binary:
    ```cmd
    python build_exe.py
    ```
-3. The resulting binary `MonitorWindowRelocator.exe` and distribution package `MonitorWindowRelocator-v1.3.0-windows-x64.zip` will be generated in the `dist/` directory.
+3. The resulting binary `MonitorWindowRelocator.exe` and distribution package `MonitorWindowRelocator-v1.4.0-windows-x64.zip` will be generated in the `dist/` directory.
 
 ---
 
@@ -127,7 +127,7 @@ python -m unittest test_relocator.py -v
 
 ---
 
-## 🌐 Language Support / Wsparcie Językowe
+## 🌐 Language Support
 
 The interface automatically detects your Windows system display language (**English** or **Polish**), and can also be switched dynamically at any time:
 1. Use the **Language dropdown** in the top-right corner of the window.
@@ -147,7 +147,7 @@ MonitorWindowRelocator/
 │   ├── icon.png                 # High-resolution application branding PNG
 │   └── MonitorWindowRelocator_Icon.png # Master asset
 ├── main.py                      # Complete application (Core, Win32 API, Hotkeys, i18n, Theme Engine, GUI & CLI)
-├── test_relocator.py            # Automated unit & integration test suite (46 tests)
+├── test_relocator.py            # Automated unit & integration test suite (51 tests)
 ├── build_exe.py                 # PyInstaller standalone build script
 ├── VERSION                      # Semantic version number
 ├── CHANGELOG.md                 # Release history and changelog

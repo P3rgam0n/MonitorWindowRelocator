@@ -5,10 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-09-18
+
+### Added
+- **Seamless Minimize to System Tray**:
+  - Added automatic window taskbar suppression upon clicking standard minimize button (`_` / `iconic` state via `<Unmap>`), withdrawing the window completely from the Windows taskbar.
+  - Application stays active exclusively in the notification area (System Tray) while minimized.
+  - Restoring from system tray via icon click or tray context menu restores the window and reappears on the taskbar seamlessly.
+
+### Changed
+- **Modern Neutral Dark UI & Styling Refactoring**:
+  - Replaced deep blue/slate tones with modern, sleek Neutral Dark color palette:
+    - Main window background: `#121212`
+    - Container cards and panels (`TLabelframe`, `Card.TFrame`): `#1e1e1e`
+    - Tables and input fields (`Treeview`, `Combobox`): `#181818`
+    - Column headers (`Treeview.Heading`): `#232323`
+    - Subtle 1px borders: `#2a2a2a` (completely removed bright blue outlines)
+    - Primary text: `#e0e0e0`, secondary text: `#9e9e9e`
+    - Primary action buttons: modern accent blue `#2563eb` (hover `#1d4ed8`, active `#1e40af`)
+    - Standard buttons: clean neutral `#2a2a2a` (hover `#383838`, active `#1f1f1f`)
+    - Flat scrollbars: `#3a3a3a` thumb on `#181818` trough without borders
+  - Enhanced table row ergonomics: increased row height (`rowheight=28`) and added dynamic row hover highlight (`#252525`).
+  - Refactored `TLabelframe` containers into sleek flat cards with subtle 1px `#2a2a2a` borders and neutral `#e0e0e0` titles.
+
 ## [1.3.0] - 2026-09-18
 
 ### Added
-- **System Tray Integration (Zasobnik systemowy)**:
+- **System Tray Integration**:
   - Implemented zero-dependency Windows notification area manager (`TrayIconManager`) using pure Win32 API (`Shell_NotifyIconW`, `NOTIFYICONDATAW`, `WNDCLASSEXW`).
   - Added "Minimize to Tray" button to GUI bottom bar allowing users to hide the window from the Windows taskbar.
   - Added context menu on tray icon right-click with theme-matched colors (Show Window, Move Active to Mouse, Gather Hidden Windows, Exit).
@@ -27,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.0] - 2026-09-15
 
 ### Added
-- **Dark Theme (Ciemny motyw)**:
+- **Dark Theme**:
   - Added modern, high-contrast Dark Theme palette tailored for readability in low-light environments.
   - Added dynamic in-app theme switcher supporting `System Default`, `Dark Theme`, and `Light Theme`.
   - Added Windows 10/11 system dark mode auto-detection via Windows Registry (`AppsUseLightTheme`).
