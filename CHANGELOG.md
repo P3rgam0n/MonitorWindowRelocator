@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-09-18
+
+### Added
+- **System Tray Integration (Zasobnik systemowy)**:
+  - Implemented zero-dependency Windows notification area manager (`TrayIconManager`) using pure Win32 API (`Shell_NotifyIconW`, `NOTIFYICONDATAW`, `WNDCLASSEXW`).
+  - Added "Minimize to Tray" button to GUI bottom bar allowing users to hide the window from the Windows taskbar.
+  - Added context menu on tray icon right-click with theme-matched colors (Show Window, Move Active to Mouse, Gather Hidden Windows, Exit).
+  - Added single-click / double-click left mouse button restoration to bring application back to front.
+  - Added configurable `minimize_to_tray` option in `config.json` and API getters/setters (`get_minimize_to_tray`, `set_minimize_to_tray`).
+  - Added complete Polish (`pl`) and English (`en`) localization for all System Tray elements and actions.
+- **Automated Test Suite Expansion**:
+  - Expanded test suite to 51 automated unit tests with comprehensive coverage of `TrayIconManager` lifecycle, graceful degradation without shell32, tray context menu callbacks, and config persistence.
+
+### Changed
+- **Dark Theme Polish & Background Artifact Elimination**:
+  - Upgraded Dark Theme palette to sleek Slate & Sky modern color scheme (`#0f172a`, `#1e293b`, `#334155`, `#38bdf8`, `#f8fafc`).
+  - Eliminated contrasting background bounding boxes and label artifact squares inside card containers by properly applying `Card.TLabel` and `Card.TFrame` styles.
+  - Unified theme palette styling across treeview headers, scrollbars, comboboxes, and menus.
+
 ## [1.2.0] - 2026-09-15
 
 ### Added

@@ -1,6 +1,6 @@
 # 🖥️ Monitor Window Relocator
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](VERSION)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-lightgrey.svg)](https://www.microsoft.com/windows)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -19,6 +19,7 @@ It allows you to instantly pull any hidden or stranded window back to your activ
 
 ## 🚀 Key Features
 
+- **📥 Windows System Tray (Notification Area)**: Minimize to system tray with one click, right-click context menu (Show, Relocate, Gather, Exit), and single/double-click window restoration.
 - **🌙 Dark Theme & System Theme Integration**: Modern high-contrast dark theme, automatic Windows dark mode detection, and dynamic in-app theme switcher.
 - **🎨 Windows Immersive Dark Titlebar**: Uses Desktop Window Manager (DWM) Win32 API to render dark title bars natively on Windows 10 & 11.
 - **🖼️ Multi-Resolution Icon**: High-resolution branding icon with multi-layer Windows ICO packaging (16px to 256px).
@@ -113,7 +114,7 @@ To compile a standalone, single-file Windows binary:
    ```cmd
    python build_exe.py
    ```
-3. The resulting binary `MonitorWindowRelocator.exe` and distribution package `MonitorWindowRelocator-v1.2.0-windows-x64.zip` will be generated in the `dist/` directory.
+3. The resulting binary `MonitorWindowRelocator.exe` and distribution package `MonitorWindowRelocator-v1.3.0-windows-x64.zip` will be generated in the `dist/` directory.
 
 ---
 
