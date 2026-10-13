@@ -5,6 +5,7 @@ i18n translations, themes, config persistence, CLI arguments,
 assets resolution, and HotkeyManager.
 """
 
+import ctypes
 import os
 import tempfile
 import unittest
@@ -521,6 +522,13 @@ class TestLiveSystemQueries(unittest.TestCase):
 class TestHotkeyManager(unittest.TestCase):
     """Tests for HotkeyManager lifecycle and state."""
 
+    def setUp(self):
+        self._orig_hotkeys = dict(main.get_hotkeys_config())
+        main._custom_hotkeys = dict(main.DEFAULT_HOTKEYS)
+
+    def tearDown(self):
+        main._custom_hotkeys = dict(self._orig_hotkeys)
+
     def test_hotkey_manager_structure(self):
         mgr = main.HotkeyManager()
         self.assertEqual(len(mgr.hotkeys), 5)
@@ -624,7 +632,8 @@ class TestGuiApp(unittest.TestCase):
             root.iconify()
             mock_unmap_event = MagicMock()
             mock_unmap_event.widget = root
-            app._on_window_unmap(mock_unmap_event)
+            with patch.object(root, 'state', return_value='iconic'):
+                app._on_window_unmap(mock_unmap_event)
             self.assertEqual(root.state(), "withdrawn")
             app.restore_from_tray()
 
@@ -644,6 +653,286 @@ class TestGuiApp(unittest.TestCase):
             self.assertGreater(app.tray_menu.index("end"), 0)
 
             app.on_closing()
+        except Exception:
+            root.destroy()
+            raise
+
+
+class TestHotkeyParserAndFormatter(unittest.TestCase):
+    """Tests for parsing, formatting, canonicalizing hotkey strings and VK key mapping."""
+
+    def test_parse_hotkey_string_valid(self):
+        # Ctrl+Alt+1
+        res = main.parse_hotkey_string("Ctrl+Alt+1")
+        self.assertIsNotNone(res)
+        mods, vk = res
+        self.assertEqual(mods, main.MOD_CONTROL | main.MOD_ALT)
+        self.assertEqual(vk, ord('1'))
+
+        # Win+Shift+F5
+        res = main.parse_hotkey_string("Win+Shift+F5")
+        self.assertIsNotNone(res)
+        mods, vk = res
+        self.assertEqual(mods, main.MOD_WIN | main.MOD_SHIFT)
+        self.assertEqual(vk, main.VK_F5)
+
+        # Space, case-insensitive, order variation
+        res = main.parse_hotkey_string(" alt + ctrl + m ")
+        self.assertIsNotNone(res)
+        mods, vk = res
+        self.assertEqual(mods, main.MOD_CONTROL | main.MOD_ALT)
+        self.assertEqual(vk, ord('M'))
+
+    def test_parse_hotkey_string_invalid(self):
+        self.assertEqual(main.parse_hotkey_string(""), (0, 0))
+        self.assertEqual(main.parse_hotkey_string("   "), (0, 0))
+        self.assertEqual(main.parse_hotkey_string("none"), (0, 0))
+        with self.assertRaises(ValueError):
+            main.parse_hotkey_string("Ctrl")  # No base key
+        with self.assertRaises(ValueError):
+            main.parse_hotkey_string("1")     # No modifier
+        with self.assertRaises(ValueError):
+            main.parse_hotkey_string("Ctrl+Alt+NonExistentKey")
+
+    def test_format_and_canonicalize_hotkey(self):
+        formatted = main.format_hotkey_string(main.MOD_CONTROL | main.MOD_ALT, ord('2'))
+        self.assertEqual(formatted, "Ctrl+Alt+2")
+
+        canonical = main.canonicalize_hotkey_string("alt + ctrl + 3")
+        self.assertEqual(canonical, "Ctrl+Alt+3")
+
+        self.assertEqual(main.canonicalize_hotkey_string(""), "")
+        with self.assertRaises(ValueError):
+            main.canonicalize_hotkey_string("InvalidKeyOnly")
+
+    def test_key_maps_integrity(self):
+        self.assertIn("ctrl", main.MODIFIERS_MAP)
+        self.assertIn("alt", main.MODIFIERS_MAP)
+        self.assertIn("shift", main.MODIFIERS_MAP)
+        self.assertIn("win", main.MODIFIERS_MAP)
+        self.assertIn("1", main.VK_MAP)
+        self.assertIn("F1", main.VK_MAP)
+        self.assertIn("UP", main.VK_MAP)
+        self.assertIn(ord('1'), main.VK_REVERSE_MAP)
+
+
+class TestWindowToggleAndMaximizeMinimize(unittest.TestCase):
+    """Tests for toggle maximize/restore and toggle minimize behaviors."""
+
+    def setUp(self):
+        self._orig_auto_max = main.get_auto_maximize_relocated()
+        self._orig_toggle_min = main.get_toggle_minimize_on_repeat()
+        main.set_auto_maximize_relocated(False)
+        main.set_toggle_minimize_on_repeat(True)
+        main._last_toggled_window_per_mon.clear()
+        main._last_toggled_time_per_mon.clear()
+        main._last_toggled_cursor_window = None
+        main._last_toggled_cursor_time = 0
+
+    def tearDown(self):
+        main.set_auto_maximize_relocated(self._orig_auto_max)
+        main.set_toggle_minimize_on_repeat(self._orig_toggle_min)
+
+    def test_toggle_maximize_active_window(self):
+        mock_win = {'hwnd': 101, 'title': 'Test Window'}
+        with patch('main.get_active_window', return_value=mock_win), \
+             patch.object(main.user32, 'IsZoomed', return_value=0), \
+             patch.object(main.user32, 'ShowWindow') as mock_show, \
+             patch.object(main.user32, 'SetForegroundWindow') as mock_fg:
+            res = main.toggle_maximize_active_window()
+            self.assertEqual(res, "maximized")
+            mock_show.assert_called_with(101, main.SW_MAXIMIZE)
+            mock_fg.assert_called_with(101)
+
+        with patch('main.get_active_window', return_value=mock_win), \
+             patch.object(main.user32, 'IsZoomed', return_value=1), \
+             patch.object(main.user32, 'ShowWindow') as mock_show, \
+             patch.object(main.user32, 'SetForegroundWindow') as mock_fg:
+            res = main.toggle_maximize_active_window()
+            self.assertEqual(res, "restored")
+            mock_show.assert_called_with(101, main.SW_RESTORE)
+            mock_fg.assert_called_with(101)
+
+        with patch('main.get_active_window', return_value=None):
+            self.assertFalse(main.toggle_maximize_active_window())
+
+    def test_minimize_active_window(self):
+        mock_win = {'hwnd': 102, 'title': 'Test Window'}
+        with patch('main.get_active_window', return_value=mock_win), \
+             patch.object(main.user32, 'ShowWindow') as mock_show:
+            res = main.minimize_active_window()
+            self.assertTrue(res)
+            mock_show.assert_called_with(102, main.SW_MINIMIZE)
+
+        with patch('main.get_active_window', return_value=None):
+            self.assertFalse(main.minimize_active_window())
+
+    def test_move_active_to_monitor_index_toggle_minimize(self):
+        monitors = [
+            {'rect': (0, 0, 1920, 1080), 'work': (0, 0, 1920, 1040), 'work_width': 1920, 'work_height': 1040},
+            {'rect': (1920, 0, 3840, 1080), 'work': (1920, 0, 3840, 1040), 'work_width': 1920, 'work_height': 1040}
+        ]
+        mock_win_mon1 = {'hwnd': 201, 'title': 'Win1', 'rect': (100, 100, 500, 500), 'is_minimized': False}
+        mock_win_mon2 = {'hwnd': 201, 'title': 'Win1', 'rect': (2000, 100, 2500, 500), 'is_minimized': False}
+
+        with patch('main.get_monitors', return_value=monitors), \
+             patch.object(main.user32, 'IsWindow', return_value=1), \
+             patch.object(main.user32, 'ShowWindow') as mock_show, \
+             patch.object(main.user32, 'SetForegroundWindow'), \
+             patch('main.move_window_to_monitor', return_value=True) as mock_move:
+
+            # 1. Active window is on Monitor 1, requested Monitor 2 -> moves to Mon 2
+            with patch('main.get_active_window', return_value=mock_win_mon1), \
+                 patch.object(main.user32, 'IsIconic', return_value=0):
+                res = main.move_active_to_monitor_index(2, toggle_minimize=True)
+                self.assertEqual(res, "moved")
+                mock_move.assert_called_once()
+
+            mock_move.reset_mock()
+
+            # 2. Active window is ALREADY on Monitor 2, requested Monitor 2 -> minimizes (Toggle)
+            with patch('main.get_active_window', return_value=mock_win_mon2), \
+                 patch.object(main.user32, 'IsIconic', return_value=0):
+                res = main.move_active_to_monitor_index(2, toggle_minimize=True)
+                self.assertEqual(res, "minimized")
+                mock_show.assert_called_with(201, main.SW_MINIMIZE)
+
+            # 3. Repeated press within 5s while window 201 is iconic -> restores to Monitor 2
+            with patch('main.get_active_window', return_value=None), \
+                 patch.object(main.user32, 'IsIconic', return_value=1):
+                res = main.move_active_to_monitor_index(2, toggle_minimize=True)
+                self.assertEqual(res, "restored")
+                mock_show.assert_called_with(201, main.SW_RESTORE)
+
+    def test_move_active_to_cursor_toggle_minimize(self):
+        monitors = [
+            {'rect': (0, 0, 1920, 1080), 'work': (0, 0, 1920, 1040), 'work_width': 1920, 'work_height': 1040}
+        ]
+        mock_win = {'hwnd': 301, 'title': 'CursorWin', 'rect': (100, 100, 500, 500), 'is_minimized': False}
+
+        with patch('main.get_monitors', return_value=monitors), \
+             patch('main.get_cursor_monitor_index', return_value=(0, monitors[0])), \
+             patch.object(main.user32, 'IsWindow', return_value=1), \
+             patch.object(main.user32, 'ShowWindow') as mock_show, \
+             patch.object(main.user32, 'SetForegroundWindow'):
+
+            # Already on cursor monitor -> minimizes
+            with patch('main.get_active_window', return_value=mock_win), \
+                 patch.object(main.user32, 'IsIconic', return_value=0):
+                res = main.move_active_to_cursor(toggle_minimize=True)
+                self.assertEqual(res, "minimized")
+                mock_show.assert_called_with(301, main.SW_MINIMIZE)
+
+            # Repeat press while minimized -> restores
+            with patch('main.get_active_window', return_value=None), \
+                 patch.object(main.user32, 'IsIconic', return_value=1):
+                res = main.move_active_to_cursor(toggle_minimize=True)
+                self.assertEqual(res, "restored")
+                mock_show.assert_called_with(301, main.SW_RESTORE)
+
+    def test_auto_maximize_relocated(self):
+        target_mon = {'rect': (0, 0, 1920, 1080), 'work': (0, 0, 1920, 1040), 'work_width': 1920, 'work_height': 1040}
+        rect = main.RECT(100, 100, 600, 500)
+        with patch.object(main.user32, 'IsWindow', return_value=1), \
+             patch.object(main.user32, 'IsIconic', return_value=0), \
+             patch.object(main.user32, 'IsZoomed', return_value=0), \
+             patch.object(main.user32, 'GetWindowRect', side_effect=lambda h, r: ctypes.memmove(r, ctypes.byref(rect), ctypes.sizeof(rect)) or 1), \
+             patch.object(main.user32, 'SetWindowPos', return_value=1), \
+             patch.object(main.user32, 'ShowWindow') as mock_show, \
+             patch.object(main.user32, 'SetForegroundWindow'):
+            # With auto_maximize=True
+            res = main.move_window_to_monitor(555, target_mon, auto_maximize=True)
+            self.assertTrue(res)
+            mock_show.assert_called_with(555, main.SW_MAXIMIZE)
+
+
+class TestHotkeyConfigAndSettings(unittest.TestCase):
+    """Tests for persistent hotkey configuration and hotkey manager reloads."""
+
+    def setUp(self):
+        self._orig_hotkeys = dict(main.get_hotkeys_config())
+        self._orig_auto_max = main.get_auto_maximize_relocated()
+        self._orig_toggle_min = main.get_toggle_minimize_on_repeat()
+
+    def tearDown(self):
+        main._custom_hotkeys = dict(self._orig_hotkeys)
+        main._auto_maximize_relocated = self._orig_auto_max
+        main._toggle_minimize_on_repeat = self._orig_toggle_min
+
+    def test_hotkeys_config_save_load(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            temp_config = os.path.join(tmp_dir, "test_config_hk.json")
+            with patch('main.CONFIG_FILE', temp_config):
+                main.load_config()
+                cfg = main.get_hotkeys_config()
+                self.assertIn("move_to_cursor", cfg)
+                self.assertEqual(cfg["move_to_cursor"], "Ctrl+Alt+M")
+
+                # Modify hotkey
+                cfg["move_to_cursor"] = "Ctrl+Shift+M"
+                main.set_hotkeys_config(cfg)
+                self.assertEqual(main.get_hotkey_for_action("move_to_cursor"), "Ctrl+Shift+M")
+                self.assertEqual(main.get_hotkey_display("move_to_cursor"), " (Ctrl+Shift+M)")
+
+                # Test toggle flags
+                main.set_auto_maximize_relocated(True)
+                self.assertTrue(main.get_auto_maximize_relocated())
+                main.set_toggle_minimize_on_repeat(False)
+                self.assertFalse(main.get_toggle_minimize_on_repeat())
+
+                # Reload
+                main.load_config()
+                self.assertEqual(main.get_hotkey_for_action("move_to_cursor"), "Ctrl+Shift+M")
+                self.assertTrue(main.get_auto_maximize_relocated())
+                self.assertFalse(main.get_toggle_minimize_on_repeat())
+
+    def test_hotkey_manager_reload(self):
+        mgr = main.HotkeyManager()
+        self.assertEqual(len(mgr.hotkeys), 5)
+        mgr.reload_hotkeys()
+        self.assertGreaterEqual(len(mgr.hotkeys), 5)
+
+
+class TestHotkeySettingsDialog(unittest.TestCase):
+    """Tests for HotkeySettingsDialog initialization, controls, validation, and saving."""
+
+    def test_dialog_lifecycle(self):
+        import tkinter as tk
+        root = tk.Tk()
+        try:
+            saved = []
+            dlg = main.HotkeySettingsDialog(root, on_save=lambda: saved.append(True))
+            self.assertIsNotNone(dlg.entries)
+            self.assertIn("move_to_cursor", dlg.entries)
+            self.assertIsNotNone(dlg.var_toggle_min)
+            self.assertIsNotNone(dlg.var_auto_max)
+
+            # Test clear action
+            dlg._clear_action("move_to_mon_4")
+            _, var4 = dlg.entries["move_to_mon_4"]
+            self.assertEqual(var4.get(), "")
+
+            # Test reset defaults
+            dlg._reset_defaults()
+            _, var1 = dlg.entries["move_to_mon_1"]
+            self.assertEqual(var1.get(), "Ctrl+Alt+1")
+            self.assertTrue(dlg.var_toggle_min.get())
+
+            # Test conflict check
+            _, var2 = dlg.entries["move_to_mon_2"]
+            var2.set("Ctrl+Alt+1")  # duplicate of mon_1
+            dlg._save_changes()
+            self.assertNotEqual(dlg.lbl_error.cget("text"), "")
+            self.assertEqual(len(saved), 0)
+
+            # Fix duplicate and save
+            var2.set("Ctrl+Alt+2")
+            dlg._save_changes()
+            self.assertEqual(len(saved), 1)
+
+            dlg.destroy()
+            root.update_idletasks()
+            root.destroy()
         except Exception:
             root.destroy()
             raise

@@ -1,6 +1,6 @@
 # 🖥️ Monitor Window Relocator
 
-[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](VERSION)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-lightgrey.svg)](https://www.microsoft.com/windows)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -19,13 +19,15 @@ It allows you to instantly pull any hidden or stranded window back to your activ
 
 ## 🚀 Key Features
 
-- **📥 Windows System Tray (Notification Area)**: Minimize to system tray with one click, right-click context menu (Show, Relocate, Gather, Exit), and single/double-click window restoration.
+- **🔄 Window Toggle Maximize / Minimize & Restore**: Pressing a monitor hotkey (e.g. `Ctrl+Alt+2`) moves the foreground window to Monitor 2; pressing it again while active minimizes the window (`SW_MINIMIZE`). Pressing it again restores the window back to foreground.
+- **⌨️ Customizable Global Hotkeys**: Interactive hotkeys configuration dialog with live key capture recording, conflict detection, clear/reset to defaults, and persistent `config.json` storage.
+- **📥 Windows System Tray (Notification Area)**: Minimize to system tray with one click, right-click context menu (Show, Relocate, Gather, Hotkey Settings, Exit), and single/double-click window restoration.
 - **🌙 Dark Theme & System Theme Integration**: Modern neutral dark theme, automatic Windows dark mode detection, and dynamic in-app theme switcher.
 - **🎨 Windows Immersive Dark Titlebar**: Uses Desktop Window Manager (DWM) Win32 API to render dark title bars natively on Windows 10 & 11.
 - **🖼️ Multi-Resolution Icon**: High-resolution branding icon with multi-layer Windows ICO packaging (16px to 256px).
 - **Instant Off-Screen Window Recovery**: Automatically scan all running windows and relocate any hidden/stranded windows to your primary monitor.
 - **Move to Mouse Cursor**: Bring the active application window straight to whichever monitor your mouse cursor is currently resting on.
-- **Direct Monitor Selection**: Move windows directly to Monitor 1, 2, or 3 using single key shortcuts.
+- **Direct Monitor Selection**: Move windows directly to Monitor 1, 2, 3, or 4 with toggle minimize support.
 - **Global Hotkeys**: Control window positions anytime in the background without focusing the application.
 - **Multilingual Support**: Fully localized in **English** (default) and **Polish** with dynamic in-app language switching.
 - **Zero External Dependencies**: Built strictly using the Python Standard Library (`ctypes`, `tkinter`). No `pip install` required to run from source!
@@ -46,15 +48,19 @@ The application provides full support for Dark and Light themes:
 
 ## ⌨️ Global Hotkeys
 
-The application runs in the background and responds to system-wide hotkeys:
+The application runs in the background and responds to system-wide hotkeys. All shortcuts can be customized via the **⌨️ Hotkeys Settings** dialog:
 
-| Hotkey | Action |
-| :--- | :--- |
-| **`Ctrl + Alt + M`** | **Move active window** to the monitor under the mouse cursor. |
-| **`Ctrl + Alt + G`** | **Gather all hidden / off-screen windows** back to the Primary Monitor. |
-| **`Ctrl + Alt + 1`** | Move active window to **Monitor 1**. |
-| **`Ctrl + Alt + 2`** | Move active window to **Monitor 2**. |
-| **`Ctrl + Alt + 3`** | Move active window to **Monitor 3**. |
+| Default Hotkey | Action | Behavior |
+| :--- | :--- | :--- |
+| **`Ctrl + Alt + M`** | **Move to Mouse Cursor** | Moves active window to cursor display; minimizes if already on cursor display. |
+| **`Ctrl + Alt + G`** | **Gather Off-Screen Windows** | Pulls all hidden / off-screen windows back to Primary Monitor work area. |
+| **`Ctrl + Alt + 1`** | **Move to Monitor 1** | Moves active window to Monitor 1; toggle minimizes/restores on repeat. |
+| **`Ctrl + Alt + 2`** | **Move to Monitor 2** | Moves active window to Monitor 2; toggle minimizes/restores on repeat. |
+| **`Ctrl + Alt + 3`** | **Move to Monitor 3** | Moves active window to Monitor 3; toggle minimizes/restores on repeat. |
+| *(Configurable)* | **Move to Monitor 4** | Moves active window to Monitor 4 (optional, toggle minimize/restore). |
+| *(Configurable)* | **Maximize / Restore** | Toggles maximize or restore state for foreground active window. |
+| *(Configurable)* | **Minimize Window** | Minimizes currently active foreground window. |
+| *(Configurable)* | **Show / Hide Application** | Toggles main application window visibility. |
 
 ---
 
@@ -114,7 +120,7 @@ To compile a standalone, single-file Windows binary:
    ```cmd
    python build_exe.py
    ```
-3. The resulting binary `MonitorWindowRelocator.exe` and distribution package `MonitorWindowRelocator-v1.4.0-windows-x64.zip` will be generated in the `dist/` directory.
+3. The resulting binary `MonitorWindowRelocator.exe` and distribution package `MonitorWindowRelocator-v1.5.0-windows-x64.zip` will be generated in the `dist/` directory.
 
 ---
 
@@ -147,7 +153,7 @@ MonitorWindowRelocator/
 │   ├── icon.png                 # High-resolution application branding PNG
 │   └── MonitorWindowRelocator_Icon.png # Master asset
 ├── main.py                      # Complete application (Core, Win32 API, Hotkeys, i18n, Theme Engine, GUI & CLI)
-├── test_relocator.py            # Automated unit & integration test suite (51 tests)
+├── test_relocator.py            # Automated unit & integration test suite (63 tests)
 ├── build_exe.py                 # PyInstaller standalone build script
 ├── VERSION                      # Semantic version number
 ├── CHANGELOG.md                 # Release history and changelog

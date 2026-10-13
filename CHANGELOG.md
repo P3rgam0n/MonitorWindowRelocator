@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-10-13
+
+### Added
+- **Window Toggle Maximize / Minimize & Restore**:
+  - Implemented smart toggle minimize behavior: pressing a screen hotkey (e.g., `Ctrl+Alt+2`) moves the foreground window to Monitor 2; pressing the shortcut again while the window is active on that monitor minimizes it (`SW_MINIMIZE`). Pressing the shortcut repeatedly restores the window back to foreground (`SW_RESTORE` or `SW_MAXIMIZE`).
+  - Added toggle behavior to "Move Active Window to Mouse Cursor" (`Ctrl+Alt+M`): toggles minimize when the active window is already on the cursor monitor.
+  - Added dedicated window toggle actions:
+    - Maximize / Restore Active Window (`toggle_maximize`)
+    - Minimize Active Window (`minimize_window`)
+    - Show / Hide Relocator Window (`toggle_app`)
+  - Added optional setting `auto_maximize_relocated` (defaults to `false`): automatically maximizes relocated windows upon moving to the target monitor.
+  - Added configurable toggle behavior flag `toggle_minimize_on_repeat` (defaults to `true`).
+- **Customizable Global Hotkeys & GUI Settings Dialog**:
+  - Added interactive "⌨️ Hotkeys Settings" dialog accessible from Quick Actions bar and System Tray context menu.
+  - Interactive key combination recording: click "Record" on any action and press your desired shortcut keys to capture modifiers (`Ctrl`, `Alt`, `Shift`, `Win`) and keys (`0-9`, `A-Z`, `F1-F12`, arrow navigation, etc.).
+  - Real-time conflict detection and validation ensuring shortcut uniqueness and preventing modifier-only or invalid combinations.
+  - "Reset to Defaults" button to restore stock application shortcuts with a single click.
+  - Full persistence of custom shortcuts and window behaviors in `config.json`.
+  - Added Monitor 4 quick-action button in main UI and configurable shortcut.
+  - Dynamic live hotkey registration reload (`HotkeyManager.reload_hotkeys()`) without needing to restart the application.
+- **Automated Test Suite Expansion**:
+  - Added 12 new automated unit tests covering hotkey parsing and canonicalization, Win32 VK mapping, toggle maximize/minimize logic, auto-maximize behavior, persistent config round-tripping, and the interactive settings dialog lifecycle (total: 63 passing tests).
+
+### Changed
+- Refactored `HotkeyManager` thread loop with thread-safe lock and dynamic hotkey reconfiguration.
+- Updated bilingual translations (`en` / `pl`) with symmetrical localization keys for all new actions, options, dialog controls, and notification messages.
+
 ## [1.4.0] - 2026-09-18
 
 ### Added

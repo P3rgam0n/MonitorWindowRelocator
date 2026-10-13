@@ -35,34 +35,50 @@ if sys.stderr is not None and hasattr(sys.stderr, 'reconfigure'):
 # Section 1: Win32 API & System Initialization
 # ============================================================================
 
-# Enable Per-Monitor High-DPI Awareness on Windows 10/11
-try:
-    # DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4 (Win 10 1703+)
-    ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
-except Exception:
+if hasattr(ctypes, 'windll'):
+    # Enable Per-Monitor High-DPI Awareness on Windows 10/11
     try:
-        # PROCESS_PER_MONITOR_DPI_AWARE = 2 (Win 8.1+)
-        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        # DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4 (Win 10 1703+)
+        ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
     except Exception:
-        pass
+        try:
+            # PROCESS_PER_MONITOR_DPI_AWARE = 2 (Win 8.1+)
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except Exception:
+            pass
 
-user32 = ctypes.windll.user32
-kernel32 = ctypes.windll.kernel32
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
 
-try:
-    dwmapi = ctypes.windll.dwmapi
-except Exception:
-    dwmapi = None
+    try:
+        dwmapi = ctypes.windll.dwmapi
+    except Exception:
+        dwmapi = None
 
-try:
-    shell32 = ctypes.windll.shell32
-except Exception:
-    shell32 = None
+    try:
+        shell32 = ctypes.windll.shell32
+    except Exception:
+        shell32 = None
+else:
+    # Non-Windows fallback for test environments and multi-platform tooling
+    from unittest.mock import MagicMock
+    if not hasattr(ctypes, 'WINFUNCTYPE'):
+        ctypes.WINFUNCTYPE = ctypes.CFUNCTYPE
+
+    user32 = MagicMock()
+    user32.GetSystemMetrics.side_effect = lambda idx: 1920 if idx == 0 else (1080 if idx == 1 else 0)
+    user32.GetWindowTextLengthW.return_value = 0
+    kernel32 = MagicMock()
+    kernel32.GetModuleHandleW.return_value = 0
+    dwmapi = MagicMock()
+    shell32 = MagicMock()
 
 # Win32 Constants
 MONITOR_DEFAULTTONEAREST = 2
 SW_RESTORE = 9
 SW_MAXIMIZE = 3
+SW_MINIMIZE = 6
+SW_SHOWMINIMIZED = 2
 SWP_NOZORDER = 0x0004
 SWP_SHOWWINDOW = 0x0040
 GWL_EXSTYLE = -20
@@ -77,14 +93,34 @@ DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19
 
 MOD_ALT = 0x0001
 MOD_CONTROL = 0x0002
+MOD_SHIFT = 0x0004
+MOD_WIN = 0x0008
 MOD_NOREPEAT = 0x4000
 WM_HOTKEY = 0x0312
 
 VK_M = 0x4D
 VK_G = 0x47
+VK_0 = 0x30
 VK_1 = 0x31
 VK_2 = 0x32
 VK_3 = 0x33
+VK_4 = 0x34
+VK_UP = 0x26
+VK_DOWN = 0x28
+VK_LEFT = 0x25
+VK_RIGHT = 0x27
+VK_F1 = 0x70
+VK_F2 = 0x71
+VK_F3 = 0x72
+VK_F4 = 0x73
+VK_F5 = 0x74
+VK_F6 = 0x75
+VK_F7 = 0x76
+VK_F8 = 0x77
+VK_F9 = 0x78
+VK_F10 = 0x79
+VK_F11 = 0x7A
+VK_F12 = 0x7B
 
 # System Tray & Notification Area Constants
 NIM_ADD = 0
@@ -363,7 +399,7 @@ def attach_console():
 # ============================================================================
 
 APP_NAME = "Monitor Window Relocator"
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.5.0"
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
@@ -470,12 +506,15 @@ TRANSLATIONS = {
 
         # Actions Frame
         "actions_frame_title": " Quick Actions & Global Hotkeys ",
-        "btn_move_to_cursor": "🎯 Move Active Window to Mouse (Ctrl+Alt+M)",
-        "btn_gather_offscreen": "🧹 Gather Hidden Windows to Primary Screen (Ctrl+Alt+G)",
+        "btn_move_to_cursor": "🎯 Move Active Window to Mouse{hotkey}",
+        "btn_gather_offscreen": "🧹 Gather Hidden Windows to Primary Screen{hotkey}",
         "lbl_move_active_to": "Move active window to:",
-        "btn_mon_1": "Monitor 1 (Ctrl+Alt+1)",
-        "btn_mon_2": "Monitor 2 (Ctrl+Alt+2)",
-        "btn_mon_3": "Monitor 3 (Ctrl+Alt+3)",
+        "btn_mon_1": "Monitor 1{hotkey}",
+        "btn_mon_2": "Monitor 2{hotkey}",
+        "btn_mon_3": "Monitor 3{hotkey}",
+        "btn_mon_4": "Monitor 4{hotkey}",
+        "btn_hotkeys_config": "⌨️ Hotkeys Settings",
+        "tray_menu_hotkeys": "⌨️ Hotkey Settings",
 
         # Windows List Frame
         "windows_frame_title": " Open Applications & Windows ",
@@ -498,6 +537,11 @@ TRANSLATIONS = {
         "status_moved_to_mon": "Moved active window to Monitor {index}.",
         "status_move_failed": "Failed to move window.",
         "status_moved_selected": "Moved '{title}' to Monitor {index}.",
+        "status_window_minimized": "Minimized window '{title}'. Press hotkey again to restore.",
+        "status_window_restored": "Restored window '{title}' to Monitor {index}.",
+        "status_window_maximized": "Maximized active window '{title}'.",
+        "status_window_restored_state": "Restored window '{title}' to normal size.",
+        "status_hotkeys_saved": "Global hotkeys configuration saved successfully.",
         "status_hotkey_triggered": "Hotkey triggered: {name}",
         "status_minimized_to_tray": "Application minimized to system tray.",
 
@@ -518,6 +562,29 @@ TRANSLATIONS = {
         "tag_minimized": " (Minimized)",
         "tag_maximized": " (Maximized)",
         "btn_mon_n": "Monitor {index}",
+
+        # Hotkey Settings Dialog
+        "hotkeys_dialog_title": "Global Hotkeys & Window Behavior",
+        "hotkeys_dialog_subtitle": "Customize shortcuts and window toggle behaviors. Click an input field and press your key combo to record.",
+        "hk_action_move_to_cursor": "Move Active Window to Mouse Cursor",
+        "hk_action_gather_offscreen": "Gather Hidden Windows to Primary Screen",
+        "hk_action_move_to_mon_1": "Move to Monitor 1 (Toggle Minimize/Restore)",
+        "hk_action_move_to_mon_2": "Move to Monitor 2 (Toggle Minimize/Restore)",
+        "hk_action_move_to_mon_3": "Move to Monitor 3 (Toggle Minimize/Restore)",
+        "hk_action_move_to_mon_4": "Move to Monitor 4 (Toggle Minimize/Restore)",
+        "hk_action_toggle_maximize": "Maximize / Restore Active Window",
+        "hk_action_minimize_window": "Minimize Active Window",
+        "hk_action_toggle_app": "Show / Hide Relocator Window",
+        "hk_opt_auto_maximize": "Auto-maximize window upon relocation to monitor",
+        "hk_opt_toggle_minimize": "Minimize window on repeated monitor hotkey (Toggle)",
+        "hk_btn_record": "Record",
+        "hk_btn_clear": "Clear",
+        "hk_btn_reset": "🔄 Reset to Defaults",
+        "hk_btn_save": "💾 Save Hotkeys",
+        "hk_btn_cancel": "Cancel",
+        "hk_recording_prompt": "Press keys...",
+        "hk_conflict_error": "Shortcut conflict: '{hotkey}' is used for multiple actions!",
+        "hk_invalid_error": "Invalid shortcut '{hotkey}'. Must include a modifier (Ctrl, Alt, Shift, Win) and a key.",
 
         # CLI Output
         "cli_gathered": "Gathered {count} hidden window(s) to primary screen.",
@@ -549,12 +616,15 @@ TRANSLATIONS = {
 
         # Actions Frame
         "actions_frame_title": " Szybkie Akcje i Skróty Klawiszowe ",
-        "btn_move_to_cursor": "🎯 Przenieś aktywne okno do myszy (Ctrl+Alt+M)",
-        "btn_gather_offscreen": "🧹 Ściągnij ukryte okna na Ekran Główny (Ctrl+Alt+G)",
+        "btn_move_to_cursor": "🎯 Przenieś aktywne okno do myszy{hotkey}",
+        "btn_gather_offscreen": "🧹 Ściągnij ukryte okna na Ekran Główny{hotkey}",
         "lbl_move_active_to": "Przenieś aktywne okno na:",
-        "btn_mon_1": "Monitor 1 (Ctrl+Alt+1)",
-        "btn_mon_2": "Monitor 2 (Ctrl+Alt+2)",
-        "btn_mon_3": "Monitor 3 (Ctrl+Alt+3)",
+        "btn_mon_1": "Monitor 1{hotkey}",
+        "btn_mon_2": "Monitor 2{hotkey}",
+        "btn_mon_3": "Monitor 3{hotkey}",
+        "btn_mon_4": "Monitor 4{hotkey}",
+        "btn_hotkeys_config": "⌨️ Ustawienia skrótów",
+        "tray_menu_hotkeys": "⌨️ Ustawienia skrótów",
 
         # Windows List Frame
         "windows_frame_title": " Otwarte Aplikacje i Okna ",
@@ -577,6 +647,11 @@ TRANSLATIONS = {
         "status_moved_to_mon": "Przeniesiono aktywne okno na Monitor {index}.",
         "status_move_failed": "Nie udało się przenieść okna.",
         "status_moved_selected": "Przeniesiono '{title}' na Monitor {index}.",
+        "status_window_minimized": "Zminimalizowano okno '{title}'. Naciśnij ponownie, aby przywrócić.",
+        "status_window_restored": "Przywrócono okno '{title}' na Monitor {index}.",
+        "status_window_maximized": "Zmaksymalizowano aktywne okno '{title}'.",
+        "status_window_restored_state": "Przywrócono normalny rozmiar okna '{title}'.",
+        "status_hotkeys_saved": "Pomyślnie zapisano konfigurację skrótów klawiszowych.",
         "status_hotkey_triggered": "Uruchomiono skrót: {name}",
         "status_minimized_to_tray": "Aplikacja zminimalizowana do zasobnika systemowego.",
 
@@ -598,6 +673,29 @@ TRANSLATIONS = {
         "tag_maximized": " (Zmaksymalizowane)",
         "btn_mon_n": "Monitor {index}",
 
+        # Hotkey Settings Dialog
+        "hotkeys_dialog_title": "Globalne Skróty Klawiszowe i Zachowanie Okien",
+        "hotkeys_dialog_subtitle": "Dostosuj skróty i zachowanie przełączania okien. Kliknij pole i naciśnij kombinację klawiszy, aby nagrać.",
+        "hk_action_move_to_cursor": "Przenieś aktywne okno pod kursor myszy",
+        "hk_action_gather_offscreen": "Ściągnij ukryte okna na Ekran Główny",
+        "hk_action_move_to_mon_1": "Przenieś na Monitor 1 (Przełącz / Minimalizuj)",
+        "hk_action_move_to_mon_2": "Przenieś na Monitor 2 (Przełącz / Minimalizuj)",
+        "hk_action_move_to_mon_3": "Przenieś na Monitor 3 (Przełącz / Minimalizuj)",
+        "hk_action_move_to_mon_4": "Przenieś na Monitor 4 (Przełącz / Minimalizuj)",
+        "hk_action_toggle_maximize": "Maksymalizuj / Przywróć aktywne okno",
+        "hk_action_minimize_window": "Minimalizuj aktywne okno",
+        "hk_action_toggle_app": "Pokaż / Ukryj okno aplikacji Relocator",
+        "hk_opt_auto_maximize": "Automatycznie maksymalizuj okno po przeniesieniu",
+        "hk_opt_toggle_minimize": "Minimalizuj okno ponownym naciśnięciem skrótu monitora (Przełącz)",
+        "hk_btn_record": "Nagraj",
+        "hk_btn_clear": "Wyczyść",
+        "hk_btn_reset": "🔄 Przywróć domyślne",
+        "hk_btn_save": "💾 Zapisz skróty",
+        "hk_btn_cancel": "Anuluj",
+        "hk_recording_prompt": "Naciśnij klawisze...",
+        "hk_conflict_error": "Konflikt skrótów: '{hotkey}' został przypisany do wielu akcji!",
+        "hk_invalid_error": "Nieprawidłowy skrót '{hotkey}'. Wymagany modyfikator (Ctrl, Alt, Shift, Win) oraz klawisz.",
+
         # CLI Output
         "cli_gathered": "Ściągnięto {count} niewidocznych okien na ekran główny.",
         "cli_moved_to_cursor": "Przeniesiono aktywne okno na monitor pod kursorem.",
@@ -612,9 +710,269 @@ TRANSLATIONS = {
     }
 }
 
+DEFAULT_HOTKEYS = {
+    "move_to_cursor": "Ctrl+Alt+M",
+    "gather_offscreen": "Ctrl+Alt+G",
+    "move_to_mon_1": "Ctrl+Alt+1",
+    "move_to_mon_2": "Ctrl+Alt+2",
+    "move_to_mon_3": "Ctrl+Alt+3",
+    "move_to_mon_4": "",
+    "toggle_maximize": "",
+    "minimize_window": "",
+    "toggle_app": ""
+}
+
+HOTKEY_ACTIONS = [
+    ("move_to_cursor", "hk_action_move_to_cursor"),
+    ("gather_offscreen", "hk_action_gather_offscreen"),
+    ("move_to_mon_1", "hk_action_move_to_mon_1"),
+    ("move_to_mon_2", "hk_action_move_to_mon_2"),
+    ("move_to_mon_3", "hk_action_move_to_mon_3"),
+    ("move_to_mon_4", "hk_action_move_to_mon_4"),
+    ("toggle_maximize", "hk_action_toggle_maximize"),
+    ("minimize_window", "hk_action_minimize_window"),
+    ("toggle_app", "hk_action_toggle_app"),
+]
+
+MODIFIERS_MAP = {
+    "ctrl": MOD_CONTROL,
+    "control": MOD_CONTROL,
+    "alt": MOD_ALT,
+    "shift": MOD_SHIFT,
+    "win": MOD_WIN,
+    "super": MOD_WIN,
+    "windows": MOD_WIN,
+}
+
+VK_MAP = {
+    # Letters
+    **{chr(c): c for c in range(ord('A'), ord('Z') + 1)},
+    # Digits
+    **{str(c): ord('0') + c for c in range(10)},
+    # Function keys
+    **{f"F{i}": 0x70 + (i - 1) for i in range(1, 25)},
+    # Arrows & Navigation
+    "UP": 0x26,
+    "DOWN": 0x28,
+    "LEFT": 0x25,
+    "RIGHT": 0x27,
+    "HOME": 0x24,
+    "END": 0x23,
+    "PAGEUP": 0x21,
+    "PGUP": 0x21,
+    "PAGEDOWN": 0x22,
+    "PGDN": 0x22,
+    "INSERT": 0x2D,
+    "INS": 0x2D,
+    "DELETE": 0x2E,
+    "DEL": 0x2E,
+    # Common keys
+    "SPACE": 0x20,
+    "TAB": 0x09,
+    "RETURN": 0x0D,
+    "ENTER": 0x0D,
+    "ESCAPE": 0x1B,
+    "ESC": 0x1B,
+    "BACKSPACE": 0x08,
+    "BACK": 0x08,
+    # Symbols
+    "`": 0xC0,
+    "~": 0xC0,
+    "GRAVE": 0xC0,
+    "-": 0xBD,
+    "MINUS": 0xBD,
+    "=": 0xBB,
+    "PLUS": 0xBB,
+    "EQUAL": 0xBB,
+    "[": 0xDB,
+    "]": 0xDD,
+    ";": 0xBA,
+    "'": 0xDE,
+    ",": 0xBC,
+    ".": 0xBE,
+    "/": 0xBF,
+    "\\": 0xDC,
+    # Numpad
+    **{f"NUM{i}": 0x60 + i for i in range(10)},
+    **{f"NUMPAD{i}": 0x60 + i for i in range(10)},
+    "NUMPAD_ADD": 0x6B,
+    "NUMPAD_SUB": 0x6D,
+    "NUMPAD_MUL": 0x6A,
+    "NUMPAD_DIV": 0x6F,
+}
+
+VK_REVERSE_MAP = {
+    **{c: chr(c) for c in range(ord('0'), ord('9') + 1)},
+    **{c: chr(c) for c in range(ord('A'), ord('Z') + 1)},
+    **{0x70 + (i - 1): f"F{i}" for i in range(1, 25)},
+    0x26: "Up",
+    0x28: "Down",
+    0x25: "Left",
+    0x27: "Right",
+    0x24: "Home",
+    0x23: "End",
+    0x21: "PageUp",
+    0x22: "PageDown",
+    0x2D: "Insert",
+    0x2E: "Delete",
+    0x20: "Space",
+    0x09: "Tab",
+    0x0D: "Enter",
+    0x1B: "Esc",
+    0x08: "Backspace",
+    0xC0: "`",
+    0xBD: "-",
+    0xBB: "=",
+    0xDB: "[",
+    0xDD: "]",
+    0xBA: ";",
+    0xDE: "'",
+    0xBC: ",",
+    0xBE: ".",
+    0xBF: "/",
+    0xDC: "\\",
+    **{0x60 + i: f"Num{i}" for i in range(10)},
+    0x6B: "Num+",
+    0x6D: "Num-",
+    0x6A: "Num*",
+    0x6F: "Num/",
+}
+
+
+def format_modifiers(mods):
+    """Formats modifiers mask into list of standard token names."""
+    parts = []
+    if mods & MOD_CONTROL:
+        parts.append("Ctrl")
+    if mods & MOD_ALT:
+        parts.append("Alt")
+    if mods & MOD_SHIFT:
+        parts.append("Shift")
+    if mods & MOD_WIN:
+        parts.append("Win")
+    return parts
+
+
+def parse_hotkey_string(text):
+    """Parses hotkey string (e.g. 'Ctrl+Alt+2') into (modifiers, vk_code).
+    Returns (0, 0) if string is empty or disabled.
+    Raises ValueError if format or key is invalid."""
+    if not text:
+        return 0, 0
+    cleaned = str(text).strip()
+    if not cleaned or cleaned.lower() in ("none", "disabled", "-", "brak", "brak skrótu"):
+        return 0, 0
+
+    parts = [p.strip() for p in cleaned.split("+") if p.strip()]
+    if not parts:
+        return 0, 0
+
+    mods = 0
+    key_part = None
+
+    for part in parts:
+        lower_p = part.lower()
+        if lower_p in MODIFIERS_MAP:
+            mods |= MODIFIERS_MAP[lower_p]
+        else:
+            if key_part is not None:
+                raise ValueError(f"Multiple non-modifier keys specified: '{key_part}' and '{part}'")
+            key_part = part
+
+    if not key_part:
+        raise ValueError("No main key specified (only modifiers).")
+
+    upper_key = key_part.upper()
+    if upper_key in VK_MAP:
+        vk = VK_MAP[upper_key]
+    elif len(key_part) == 1 and key_part in VK_MAP:
+        vk = VK_MAP[key_part]
+    else:
+        raise ValueError(f"Unrecognized key: '{key_part}'")
+
+    if mods == 0:
+        raise ValueError("At least one modifier (Ctrl, Alt, Shift, or Win) is required.")
+
+    return mods, vk
+
+
+def format_hotkey_string(mods, vk):
+    """Formats modifiers mask and vk_code into canonical string (e.g. 'Ctrl+Alt+2')."""
+    if vk == 0:
+        return ""
+    mod_parts = format_modifiers(mods)
+    key_name = VK_REVERSE_MAP.get(vk, f"0x{vk:02X}")
+    return "+".join(mod_parts + [key_name])
+
+
+def canonicalize_hotkey_string(text):
+    """Normalizes and canonicalizes a hotkey string. Returns empty string if disabled.
+    Raises ValueError if invalid."""
+    mods, vk = parse_hotkey_string(text)
+    if vk == 0:
+        return ""
+    return format_hotkey_string(mods, vk)
+
+
 _current_lang = "en"
 _current_theme = "system"
 _minimize_to_tray_on_close = False
+_auto_maximize_relocated = False
+_toggle_minimize_on_repeat = True
+_custom_hotkeys = dict(DEFAULT_HOTKEYS)
+
+
+def get_auto_maximize_relocated():
+    """Returns whether relocated windows should automatically be maximized."""
+    return _auto_maximize_relocated
+
+
+def set_auto_maximize_relocated(enabled):
+    """Sets whether relocated windows should automatically be maximized and saves config."""
+    global _auto_maximize_relocated
+    _auto_maximize_relocated = bool(enabled)
+    save_config()
+
+
+def get_toggle_minimize_on_repeat():
+    """Returns whether repeated monitor hotkeys should minimize the active window."""
+    return _toggle_minimize_on_repeat
+
+
+def set_toggle_minimize_on_repeat(enabled):
+    """Sets whether repeated monitor hotkeys should minimize the active window and saves config."""
+    global _toggle_minimize_on_repeat
+    _toggle_minimize_on_repeat = bool(enabled)
+    save_config()
+
+
+def get_hotkeys_config():
+    """Returns copy of active hotkey configuration dictionary."""
+    return dict(_custom_hotkeys)
+
+
+def set_hotkeys_config(hk_dict):
+    """Updates custom hotkeys configuration and saves config."""
+    global _custom_hotkeys
+    if isinstance(hk_dict, dict):
+        for k, v in hk_dict.items():
+            if k in DEFAULT_HOTKEYS:
+                try:
+                    _custom_hotkeys[k] = canonicalize_hotkey_string(v)
+                except Exception:
+                    _custom_hotkeys[k] = v
+        save_config()
+
+
+def get_hotkey_for_action(action_id):
+    """Returns assigned hotkey string for a given action identifier."""
+    return _custom_hotkeys.get(action_id, DEFAULT_HOTKEYS.get(action_id, ""))
+
+
+def get_hotkey_display(action_id):
+    """Returns formatted hotkey string for UI labels, e.g. ' (Ctrl+Alt+2)' or empty string."""
+    hk = get_hotkey_for_action(action_id)
+    return f" ({hk})" if hk else ""
 
 
 def detect_system_language():
@@ -668,8 +1026,16 @@ def set_minimize_to_tray(enabled):
 
 
 def load_config():
-    """Loads configuration including language, theme preferences, and tray settings."""
+    """Loads configuration including language, theme preferences, tray settings, and hotkeys."""
     global _current_lang, _current_theme, _minimize_to_tray_on_close
+    global _auto_maximize_relocated, _toggle_minimize_on_repeat, _custom_hotkeys
+    _current_lang = detect_system_language()
+    _current_theme = "system"
+    _minimize_to_tray_on_close = False
+    _auto_maximize_relocated = False
+    _toggle_minimize_on_repeat = True
+    _custom_hotkeys = dict(DEFAULT_HOTKEYS)
+
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -682,21 +1048,26 @@ def load_config():
                     _current_theme = theme
                 if "minimize_to_tray" in data:
                     _minimize_to_tray_on_close = bool(data["minimize_to_tray"])
-                return
+                if "auto_maximize_relocated" in data:
+                    _auto_maximize_relocated = bool(data["auto_maximize_relocated"])
+                if "toggle_minimize_on_repeat" in data:
+                    _toggle_minimize_on_repeat = bool(data["toggle_minimize_on_repeat"])
+                if "hotkeys" in data and isinstance(data["hotkeys"], dict):
+                    _custom_hotkeys.update(data["hotkeys"])
         except Exception:
             pass
-    _current_lang = detect_system_language()
-    _current_theme = "system"
-    _minimize_to_tray_on_close = False
 
 
 def save_config():
-    """Saves language, theme preferences, and tray settings to config.json."""
+    """Saves language, theme preferences, tray settings, and hotkeys to config.json."""
     try:
         data = {
             "language": _current_lang,
             "theme": _current_theme,
-            "minimize_to_tray": _minimize_to_tray_on_close
+            "minimize_to_tray": _minimize_to_tray_on_close,
+            "auto_maximize_relocated": _auto_maximize_relocated,
+            "toggle_minimize_on_repeat": _toggle_minimize_on_repeat,
+            "hotkeys": _custom_hotkeys
         }
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
@@ -739,6 +1110,18 @@ def t(key, **kwargs):
             return template.format(**kwargs)
         except Exception:
             return template
+    elif "{hotkey}" in template:
+        action_map = {
+            "btn_move_to_cursor": "move_to_cursor",
+            "btn_gather_offscreen": "gather_offscreen",
+            "btn_mon_1": "move_to_mon_1",
+            "btn_mon_2": "move_to_mon_2",
+            "btn_mon_3": "move_to_mon_3",
+            "btn_mon_4": "move_to_mon_4",
+        }
+        act = action_map.get(key)
+        hk = get_hotkey_for_action(act) if act else ""
+        return template.replace("{hotkey}", f" ({hk})" if hk else "")
     return template
 
 
@@ -1020,8 +1403,44 @@ def get_active_window():
     }
 
 
-def move_window_to_monitor(hwnd, target_monitor, force_restore_maximize=True):
-    """Moves a specified window handle (hwnd) to the target_monitor work area."""
+def get_window_monitor_index(rect, monitors):
+    """Returns the index of the monitor that primarily contains the window rect.
+    Checks center point first, then maximum intersection area."""
+    if not monitors or not rect:
+        return 0
+    l, t_pos, r, b = rect
+    cx = (l + r) // 2
+    cy = (t_pos + b) // 2
+    for idx, mon in enumerate(monitors):
+        ml, mt, mr, mb = mon['rect']
+        if ml <= cx < mr and mt <= cy < mb:
+            return idx
+    # Maximum overlap fallback
+    best_idx = 0
+    best_overlap = -1
+    for idx, mon in enumerate(monitors):
+        ml, mt, mr, mb = mon['rect']
+        ix1 = max(l, ml)
+        iy1 = max(t_pos, mt)
+        ix2 = min(r, mr)
+        iy2 = min(b, mb)
+        if ix2 > ix1 and iy2 > iy1:
+            overlap = (ix2 - ix1) * (iy2 - iy1)
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_idx = idx
+    return best_idx
+
+
+_last_toggled_window_per_mon = {}
+_last_toggled_time_per_mon = {}
+_last_toggled_cursor_window = None
+_last_toggled_cursor_time = 0
+
+
+def move_window_to_monitor(hwnd, target_monitor, force_restore_maximize=True, auto_maximize=False):
+    """Moves a specified window handle (hwnd) to the target_monitor work area.
+    Optionally auto-maximizes window on destination monitor if requested."""
     ensure_input_desktop()
     if not hwnd or not user32.IsWindow(hwnd) or not target_monitor:
         return False
@@ -1058,7 +1477,8 @@ def move_window_to_monitor(hwnd, target_monitor, force_restore_maximize=True):
     # Relocate window
     res = user32.SetWindowPos(hwnd, 0, new_x, new_y, new_w, new_h, SWP_NOZORDER | SWP_SHOWWINDOW)
 
-    if is_max and force_restore_maximize:
+    should_maximize = auto_maximize or (is_max and force_restore_maximize)
+    if should_maximize:
         time.sleep(0.05)
         user32.ShowWindow(hwnd, SW_MAXIMIZE)
 
@@ -1066,37 +1486,137 @@ def move_window_to_monitor(hwnd, target_monitor, force_restore_maximize=True):
     return bool(res)
 
 
-def move_active_to_cursor():
-    """Moves currently focused window to the monitor under the mouse cursor."""
+def move_active_to_cursor(toggle_minimize=None):
+    """Moves currently focused window to the monitor under the mouse cursor.
+    If already on the cursor monitor, minimizes it (Toggle).
+    If repeatedly pressed while minimized, restores it back to foreground."""
+    global _last_toggled_cursor_window, _last_toggled_cursor_time
     monitors = get_monitors()
     if not monitors:
         return False
 
-    idx, cur_mon = get_cursor_monitor_index(monitors)
+    if toggle_minimize is None:
+        toggle_minimize = get_toggle_minimize_on_repeat()
+
+    target_idx, cur_mon = get_cursor_monitor_index(monitors)
     if not cur_mon:
         return False
 
+    auto_max = get_auto_maximize_relocated()
     fg = get_active_window()
+    now = time.time()
+
+    if _last_toggled_cursor_window and user32.IsWindow(_last_toggled_cursor_window) and user32.IsIconic(_last_toggled_cursor_window):
+        if not fg or not fg['hwnd'] or (now - _last_toggled_cursor_time < 5.0 and toggle_minimize):
+            user32.ShowWindow(_last_toggled_cursor_window, SW_MAXIMIZE if auto_max else SW_RESTORE)
+            user32.SetForegroundWindow(_last_toggled_cursor_window)
+            _last_toggled_cursor_time = now
+            return "restored"
+
     if not fg or not fg['hwnd']:
         return False
 
-    return move_window_to_monitor(fg['hwnd'], cur_mon)
+    hwnd = fg['hwnd']
+    win_mon_idx = get_window_monitor_index(fg['rect'], monitors)
+
+    if win_mon_idx == target_idx and not fg.get('is_minimized', False):
+        if toggle_minimize:
+            user32.ShowWindow(hwnd, SW_MINIMIZE)
+            _last_toggled_cursor_window = hwnd
+            _last_toggled_cursor_time = now
+            return "minimized"
+        else:
+            res = move_window_to_monitor(hwnd, cur_mon, auto_maximize=auto_max)
+            return "moved" if res else False
+
+    res = move_window_to_monitor(hwnd, cur_mon, auto_maximize=auto_max)
+    if res:
+        _last_toggled_cursor_window = hwnd
+        _last_toggled_cursor_time = now
+        return "moved"
+    return False
 
 
-def move_active_to_monitor_index(monitor_index_1based):
-    """Moves active window to Monitor by 1-based index."""
+def move_active_to_monitor_index(monitor_index_1based, toggle_minimize=None):
+    """Moves active window to Monitor by 1-based index.
+    If the active window is already on target monitor, minimizes it (Toggle).
+    If repeatedly pressed while minimized, restores it back to foreground."""
+    global _last_toggled_window_per_mon, _last_toggled_time_per_mon
     monitors = get_monitors()
     if not monitors:
         return False
 
+    if toggle_minimize is None:
+        toggle_minimize = get_toggle_minimize_on_repeat()
+
     target_idx = max(0, min(monitor_index_1based - 1, len(monitors) - 1))
     target_mon = monitors[target_idx]
+    auto_max = get_auto_maximize_relocated()
 
     fg = get_active_window()
+    last_hwnd = _last_toggled_window_per_mon.get(monitor_index_1based)
+    last_time = _last_toggled_time_per_mon.get(monitor_index_1based, 0)
+    now = time.time()
+
+    # Toggle loop: if target monitor has a window that was recently minimized or active is none
+    if last_hwnd and user32.IsWindow(last_hwnd) and user32.IsIconic(last_hwnd):
+        if not fg or not fg['hwnd'] or (now - last_time < 5.0 and toggle_minimize):
+            user32.ShowWindow(last_hwnd, SW_MAXIMIZE if auto_max else SW_RESTORE)
+            user32.SetForegroundWindow(last_hwnd)
+            _last_toggled_time_per_mon[monitor_index_1based] = now
+            return "restored"
+
     if not fg or not fg['hwnd']:
         return False
 
-    return move_window_to_monitor(fg['hwnd'], target_mon)
+    hwnd = fg['hwnd']
+    win_mon_idx = get_window_monitor_index(fg['rect'], monitors)
+
+    # Window is ALREADY on target monitor: toggle minimize
+    if win_mon_idx == target_idx and not fg.get('is_minimized', False):
+        if toggle_minimize:
+            user32.ShowWindow(hwnd, SW_MINIMIZE)
+            _last_toggled_window_per_mon[monitor_index_1based] = hwnd
+            _last_toggled_time_per_mon[monitor_index_1based] = now
+            return "minimized"
+        else:
+            res = move_window_to_monitor(hwnd, target_mon, auto_maximize=auto_max)
+            return "moved" if res else False
+
+    # Window is on a different monitor: move to target monitor
+    res = move_window_to_monitor(hwnd, target_mon, auto_maximize=auto_max)
+    if res:
+        _last_toggled_window_per_mon[monitor_index_1based] = hwnd
+        _last_toggled_time_per_mon[monitor_index_1based] = now
+        return "moved"
+    return False
+
+
+def toggle_maximize_active_window():
+    """Toggles maximize / restore state of currently active foreground window."""
+    ensure_input_desktop()
+    fg = get_active_window()
+    if not fg or not fg['hwnd']:
+        return False
+    hwnd = fg['hwnd']
+    if user32.IsZoomed(hwnd):
+        user32.ShowWindow(hwnd, SW_RESTORE)
+        action = "restored"
+    else:
+        user32.ShowWindow(hwnd, SW_MAXIMIZE)
+        action = "maximized"
+    user32.SetForegroundWindow(hwnd)
+    return action
+
+
+def minimize_active_window():
+    """Minimizes currently active foreground window."""
+    ensure_input_desktop()
+    fg = get_active_window()
+    if not fg or not fg['hwnd']:
+        return False
+    user32.ShowWindow(fg['hwnd'], SW_MINIMIZE)
+    return True
 
 
 def gather_offscreen_windows():
@@ -1125,40 +1645,96 @@ def gather_offscreen_windows():
 # ============================================================================
 
 class HotkeyManager:
-    """Manages system-wide global hotkeys using Win32 RegisterHotKey."""
+    """Manages system-wide global hotkeys using Win32 RegisterHotKey with dynamic configuration."""
 
-    def __init__(self, on_hotkey_triggered_callback=None):
+    def __init__(self, on_hotkey_triggered_callback=None, app_instance=None):
         self.running = False
         self.thread = None
         self.callback = on_hotkey_triggered_callback
-        self.hotkeys = [
-            (1, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_M, "Ctrl+Alt+M", self._action_move_cursor),
-            (2, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_G, "Ctrl+Alt+G", self._action_gather),
-            (3, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_1, "Ctrl+Alt+1", lambda: self._action_move_mon(1)),
-            (4, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_2, "Ctrl+Alt+2", lambda: self._action_move_mon(2)),
-            (5, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_3, "Ctrl+Alt+3", lambda: self._action_move_mon(3)),
-        ]
+        self.app = app_instance
+        self.failed_hotkeys = []
+        self._lock = threading.Lock()
+        self.hotkeys = []
+        self.build_hotkeys_from_config()
+
+    def build_hotkeys_from_config(self, config_dict=None):
+        """Builds hotkey definitions list from configuration."""
+        cfg = config_dict if config_dict is not None else get_hotkeys_config()
+        action_dispatchers = {
+            "move_to_cursor": self._action_move_cursor,
+            "gather_offscreen": self._action_gather,
+            "move_to_mon_1": lambda: self._action_move_mon(1),
+            "move_to_mon_2": lambda: self._action_move_mon(2),
+            "move_to_mon_3": lambda: self._action_move_mon(3),
+            "move_to_mon_4": lambda: self._action_move_mon(4),
+            "toggle_maximize": self._action_toggle_maximize,
+            "minimize_window": self._action_minimize_window,
+            "toggle_app": self._action_toggle_app,
+        }
+
+        hotkeys = []
+        hk_id = 1
+        for act_key, _ in HOTKEY_ACTIONS:
+            raw_val = cfg.get(act_key, "")
+            if not raw_val:
+                continue
+            try:
+                mods, vk = parse_hotkey_string(raw_val)
+                if vk != 0:
+                    canonical_name = format_hotkey_string(mods, vk)
+                    fn = action_dispatchers.get(act_key)
+                    if fn:
+                        hotkeys.append((hk_id, mods | MOD_NOREPEAT, vk, canonical_name, fn))
+                        hk_id += 1
+            except Exception:
+                pass
+
+        self.hotkeys = hotkeys
 
     def _action_move_cursor(self):
-        move_active_to_cursor()
+        return move_active_to_cursor()
 
     def _action_gather(self):
-        gather_offscreen_windows()
+        return gather_offscreen_windows()
 
     def _action_move_mon(self, idx):
-        move_active_to_monitor_index(idx)
+        return move_active_to_monitor_index(idx)
+
+    def _action_toggle_maximize(self):
+        return toggle_maximize_active_window()
+
+    def _action_minimize_window(self):
+        return minimize_active_window()
+
+    def _action_toggle_app(self):
+        if self.app and hasattr(self.app, 'root'):
+            self.app.root.after(0, self.app.toggle_app_visibility)
+
+    def reload_hotkeys(self, new_config=None):
+        """Dynamically reloads hotkey configurations on the fly."""
+        with self._lock:
+            was_running = self.running
+            if was_running:
+                self.stop()
+            self.build_hotkeys_from_config(new_config)
+            if was_running:
+                self.start()
 
     def start(self):
         """Starts hotkey listener background thread."""
-        if self.running:
-            return
-        self.running = True
-        self.thread = threading.Thread(target=self._run_loop, daemon=True)
-        self.thread.start()
+        with self._lock:
+            if self.running:
+                return
+            self.running = True
+            self.thread = threading.Thread(target=self._run_loop, daemon=True)
+            self.thread.start()
 
     def stop(self):
         """Stops hotkey listener thread and cleanly unregisters hotkeys."""
-        self.running = False
+        with self._lock:
+            if not self.running:
+                return
+            self.running = False
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=0.6)
 
@@ -1166,7 +1742,8 @@ class HotkeyManager:
         ensure_input_desktop()
         registered = []
         self.failed_hotkeys = []
-        for hk_id, mods, vk, name, action in self.hotkeys:
+        for item in self.hotkeys:
+            hk_id, mods, vk, name, action = item[:5]
             if user32.RegisterHotKey(None, hk_id, mods, vk):
                 registered.append(hk_id)
             else:
@@ -1184,12 +1761,16 @@ class HotkeyManager:
                 if user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 1):
                     if msg.message == WM_HOTKEY:
                         hk_id = msg.wParam
-                        for id_val, mods, vk, name, action in self.hotkeys:
+                        for item in self.hotkeys:
+                            id_val, mods, vk, name, action = item[:5]
                             if id_val == hk_id:
                                 try:
-                                    action()
+                                    res = action()
                                     if self.callback:
-                                        self.callback(name)
+                                        try:
+                                            self.callback(name, res)
+                                        except TypeError:
+                                            self.callback(name)
                                 except Exception as e:
                                     if sys.stdout is not None:
                                         try:
@@ -1390,6 +1971,245 @@ class TrayIconManager:
 # Section 5: Tkinter Graphical User Interface (GUI)
 # ============================================================================
 
+class HotkeySettingsDialog(tk.Toplevel):
+    """Modal dialog for customizing application hotkeys and window behavior."""
+
+    def __init__(self, parent, on_save_callback=None, on_save=None):
+        super().__init__(parent)
+        self.parent = parent
+        self.on_save = on_save_callback or on_save
+        self.recording_action_key = None
+        self.entries = {}
+        self.buttons_record = {}
+
+        self.title(t("hotkeys_dialog_title"))
+        self.transient(parent)
+        self.grab_set()
+
+        self.resizable(False, False)
+        self._setup_ui()
+        self._apply_theme()
+        self._center_window(630, 680)
+
+        # Apply dark titlebar on Windows
+        is_dark = (get_effective_theme() == "dark")
+        apply_win32_dark_titlebar(get_tk_hwnd(self), is_dark)
+
+    def _center_window(self, width, height):
+        self.update_idletasks()
+        try:
+            pw = self.parent.winfo_width()
+            ph = self.parent.winfo_height()
+            px = self.parent.winfo_rootx()
+            py = self.parent.winfo_rooty()
+            x = max(10, px + (pw - width) // 2)
+            y = max(10, py + (ph - height) // 2)
+            self.geometry(f"{width}x{height}+{x}+{y}")
+        except Exception:
+            self.geometry(f"{width}x{height}")
+
+    def _setup_ui(self):
+        container = ttk.Frame(self, padding=16)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        # Header Title & Subtitle
+        lbl_title = ttk.Label(container, text=t("hotkeys_dialog_title"), font=("Segoe UI", 12, "bold"))
+        lbl_title.pack(anchor="w", pady=(0, 2))
+
+        lbl_sub = ttk.Label(container, text=t("hotkeys_dialog_subtitle"), font=("Segoe UI", 8), wraplength=590)
+        lbl_sub.pack(anchor="w", pady=(0, 10))
+
+        # Hotkeys Table Container
+        table_frame = ttk.LabelFrame(container, text=f" {t('actions_frame_title').strip()} ", padding=10)
+        table_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
+
+        current_cfg = get_hotkeys_config()
+
+        for idx, (act_key, act_label_key) in enumerate(HOTKEY_ACTIONS):
+            row = ttk.Frame(table_frame)
+            row.pack(fill=tk.X, pady=2)
+
+            lbl = ttk.Label(row, text=t(act_label_key), font=("Segoe UI", 9), width=36, anchor="w")
+            lbl.pack(side=tk.LEFT, padx=(0, 6))
+
+            entry_var = tk.StringVar(value=current_cfg.get(act_key, ""))
+            entry = ttk.Entry(row, textvariable=entry_var, width=15, justify="center")
+            entry.pack(side=tk.LEFT, padx=(0, 4))
+            self.entries[act_key] = (entry, entry_var)
+
+            # Record button
+            btn_rec = ttk.Button(row, text=t("hk_btn_record"), width=9,
+                                 command=lambda k=act_key: self._toggle_record(k))
+            btn_rec.pack(side=tk.LEFT, padx=(0, 4))
+            self.buttons_record[act_key] = btn_rec
+
+            # Clear button
+            btn_clr = ttk.Button(row, text="✕", width=3,
+                                 command=lambda k=act_key: self._clear_action(k))
+            btn_clr.pack(side=tk.LEFT)
+
+        # Behavior Options Frame
+        opts_frame = ttk.LabelFrame(container, text=" Options ", padding=8)
+        opts_frame.pack(fill=tk.X, pady=(0, 8))
+
+        self.var_toggle_min = tk.BooleanVar(value=get_toggle_minimize_on_repeat())
+        chk_toggle = ttk.Checkbutton(opts_frame, text=t("hk_opt_toggle_minimize"), variable=self.var_toggle_min)
+        chk_toggle.pack(anchor="w", pady=2)
+
+        self.var_auto_max = tk.BooleanVar(value=get_auto_maximize_relocated())
+        chk_auto_max = ttk.Checkbutton(opts_frame, text=t("hk_opt_auto_maximize"), variable=self.var_auto_max)
+        chk_auto_max.pack(anchor="w", pady=2)
+
+        # Inline Error & Conflict message label
+        self.lbl_error = ttk.Label(container, text="", foreground="#ef4444", font=("Segoe UI", 9, "bold"))
+        self.lbl_error.pack(anchor="w", pady=(0, 6))
+
+        # Bottom Buttons Bar
+        btn_box = ttk.Frame(container)
+        btn_box.pack(fill=tk.X, pady=(4, 0))
+
+        btn_reset = ttk.Button(btn_box, text=t("hk_btn_reset"), command=self._reset_defaults)
+        btn_reset.pack(side=tk.LEFT)
+
+        btn_cancel = ttk.Button(btn_box, text=t("hk_btn_cancel"), command=self.destroy)
+        btn_cancel.pack(side=tk.RIGHT, padx=(6, 0))
+
+        btn_save = ttk.Button(btn_box, text=t("hk_btn_save"), style="Primary.TButton", command=self._save_changes)
+        btn_save.pack(side=tk.RIGHT)
+
+        # Keyboard event binding for shortcut recording
+        self.bind("<KeyPress>", self._on_key_press)
+
+    def _toggle_record(self, action_key):
+        if self.recording_action_key == action_key:
+            self._stop_recording()
+        else:
+            self.recording_action_key = action_key
+            self.lbl_error.config(text="")
+            for k, btn in self.buttons_record.items():
+                if k == action_key:
+                    btn.config(text=t("hk_recording_prompt"))
+                else:
+                    btn.config(text=t("hk_btn_record"))
+            entry, _ = self.entries[action_key]
+            entry.focus_set()
+
+    def _stop_recording(self):
+        if self.recording_action_key and self.recording_action_key in self.buttons_record:
+            self.buttons_record[self.recording_action_key].config(text=t("hk_btn_record"))
+        self.recording_action_key = None
+
+    def _clear_action(self, action_key):
+        if action_key in self.entries:
+            _, var = self.entries[action_key]
+            var.set("")
+        self._stop_recording()
+        self.lbl_error.config(text="")
+
+    def _on_key_press(self, event):
+        if not self.recording_action_key:
+            return
+
+        key_sym = event.keysym
+        if key_sym in ("Escape", "Esc"):
+            self._stop_recording()
+            return
+
+        # Ignore standalone modifier press
+        if key_sym in ("Control_L", "Control_R", "Alt_L", "Alt_R", "Shift_L", "Shift_R", "Super_L", "Super_R"):
+            return
+
+        mods = []
+        state = event.state
+        if state & 0x0004:
+            mods.append("Ctrl")
+        if state & 0x0008 or state & 0x20000:
+            mods.append("Alt")
+        if state & 0x0001:
+            mods.append("Shift")
+        if state & 0x0040:
+            mods.append("Win")
+
+        key_name = key_sym
+        if len(key_sym) == 1:
+            key_name = key_sym.upper()
+        elif key_sym.lower().startswith("kp_"):
+            num_suffix = key_sym[3:]
+            key_name = f"Num{num_suffix}" if num_suffix.isdigit() else num_suffix
+        elif key_sym in ("Prior", "Next"):
+            key_name = "PageUp" if key_sym == "Prior" else "PageDown"
+
+        if key_name.upper() in VK_MAP:
+            normalized_key = VK_REVERSE_MAP.get(VK_MAP[key_name.upper()], key_name)
+        elif key_name in VK_MAP:
+            normalized_key = VK_REVERSE_MAP.get(VK_MAP[key_name], key_name)
+        else:
+            normalized_key = key_name
+
+        if not mods:
+            self.lbl_error.config(text=t("hk_invalid_error", hotkey=normalized_key))
+            return
+
+        combo_str = "+".join(mods + [normalized_key])
+        try:
+            canonical = canonicalize_hotkey_string(combo_str)
+            _, var = self.entries[self.recording_action_key]
+            var.set(canonical)
+            self.lbl_error.config(text="")
+            self._stop_recording()
+        except ValueError as e:
+            self.lbl_error.config(text=str(e))
+
+    def _reset_defaults(self):
+        for act_key, default_val in DEFAULT_HOTKEYS.items():
+            if act_key in self.entries:
+                _, var = self.entries[act_key]
+                var.set(default_val)
+        self.var_toggle_min.set(True)
+        self.var_auto_max.set(False)
+        self._stop_recording()
+        self.lbl_error.config(text="")
+
+    def _save_changes(self):
+        new_cfg = {}
+        seen_combos = {}
+
+        for act_key, (_, var) in self.entries.items():
+            val = var.get().strip()
+            if val:
+                try:
+                    canonical = canonicalize_hotkey_string(val)
+                except ValueError:
+                    self.lbl_error.config(text=t("hk_invalid_error", hotkey=val))
+                    return
+
+                lower_canonical = canonical.lower()
+                if lower_canonical in seen_combos:
+                    self.lbl_error.config(text=t("hk_conflict_error", hotkey=canonical))
+                    return
+                seen_combos[lower_canonical] = act_key
+                new_cfg[act_key] = canonical
+            else:
+                new_cfg[act_key] = ""
+
+        # Save settings and reload hotkeys
+        set_hotkeys_config(new_cfg)
+        set_toggle_minimize_on_repeat(self.var_toggle_min.get())
+        set_auto_maximize_relocated(self.var_auto_max.get())
+
+        if self.on_save:
+            try:
+                self.on_save()
+            except Exception:
+                pass
+
+        self.destroy()
+
+    def _apply_theme(self):
+        pal = THEME_PALETTES.get(get_effective_theme(), THEME_PALETTES["dark"])
+        self.configure(bg=pal["bg_main"])
+
+
 class WindowRelocatorApp:
     """Modern Tkinter GUI Application for Monitor Window Relocator with Dark Theme support."""
 
@@ -1409,8 +2229,8 @@ class WindowRelocatorApp:
         # Set application window icon
         self._set_app_icon()
 
-        # Initialize hotkey manager
-        self.hotkey_mgr = HotkeyManager(on_hotkey_triggered_callback=self._on_hotkey_triggered)
+        # Initialize hotkey manager with app reference
+        self.hotkey_mgr = HotkeyManager(on_hotkey_triggered_callback=self._on_hotkey_triggered, app_instance=self)
         self.hotkey_mgr.start()
 
         # Initialize and start System Tray Manager
@@ -1532,6 +2352,12 @@ class WindowRelocatorApp:
 
         self.btn_mon3 = ttk.Button(btn_box2, command=lambda: self.cmd_move_to_mon(3))
         self.btn_mon3.pack(side=tk.LEFT, padx=3)
+
+        self.btn_mon4 = ttk.Button(btn_box2, command=lambda: self.cmd_move_to_mon(4))
+        self.btn_mon4.pack(side=tk.LEFT, padx=3)
+
+        self.btn_hotkeys = ttk.Button(btn_box2, command=self.open_hotkeys_dialog)
+        self.btn_hotkeys.pack(side=tk.LEFT, padx=(10, 3))
 
         # Windows List Frame
         self.win_lf = ttk.LabelFrame(self.main_frame, padding=10)
@@ -1815,13 +2641,17 @@ class WindowRelocatorApp:
         self.actions_lf.config(text=t("actions_frame_title"))
         self.win_lf.config(text=t("windows_frame_title"))
 
-        self.btn_cursor.config(text=t("btn_move_to_cursor"))
-        self.btn_gather.config(text=t("btn_gather_offscreen"))
+        self.btn_cursor.config(text=t("btn_move_to_cursor", hotkey=get_hotkey_display("move_to_cursor")))
+        self.btn_gather.config(text=t("btn_gather_offscreen", hotkey=get_hotkey_display("gather_offscreen")))
         self.lbl_mon_sel.config(text=t("lbl_move_active_to"))
 
-        self.btn_mon1.config(text=t("btn_mon_1"))
-        self.btn_mon2.config(text=t("btn_mon_2"))
-        self.btn_mon3.config(text=t("btn_mon_3"))
+        self.btn_mon1.config(text=t("btn_mon_1", hotkey=get_hotkey_display("move_to_mon_1")))
+        self.btn_mon2.config(text=t("btn_mon_2", hotkey=get_hotkey_display("move_to_mon_2")))
+        self.btn_mon3.config(text=t("btn_mon_3", hotkey=get_hotkey_display("move_to_mon_3")))
+        if hasattr(self, 'btn_mon4'):
+            self.btn_mon4.config(text=t("btn_mon_4", hotkey=get_hotkey_display("move_to_mon_4")))
+        if hasattr(self, 'btn_hotkeys'):
+            self.btn_hotkeys.config(text=t("btn_hotkeys_config"))
 
         self.tree.heading("title", text=t("col_title"))
         self.tree.heading("pos", text=t("col_pos"))
@@ -1879,8 +2709,14 @@ class WindowRelocatorApp:
             self.cmd_move_selected_to_cursor()
             return
 
+        fg = get_active_window()
+        fg_title = fg['title'][:30] if fg and fg.get('title') else ""
         res = move_active_to_cursor()
-        if res:
+        if res == "minimized":
+            self.set_status(t("status_window_minimized", title=fg_title))
+        elif res == "restored":
+            self.set_status(t("status_window_restored", title=fg_title, index=1))
+        elif res:
             self.set_status(t("status_moved_to_cursor"))
         else:
             self.set_status(t("status_no_active_window"))
@@ -1906,7 +2742,7 @@ class WindowRelocatorApp:
                 return
             target_idx = max(0, min(idx - 1, len(monitors) - 1))
             target_mon = monitors[target_idx]
-            res = move_window_to_monitor(hwnd, target_mon)
+            res = move_window_to_monitor(hwnd, target_mon, auto_maximize=get_auto_maximize_relocated())
             if res:
                 self.set_status(t("status_moved_selected", title=str(item['values'][0])[:30], index=target_idx + 1))
             else:
@@ -1914,8 +2750,14 @@ class WindowRelocatorApp:
             self.root.after(300, self.refresh_all)
             return
 
+        fg = get_active_window()
+        fg_title = fg['title'][:30] if fg and fg.get('title') else ""
         res = move_active_to_monitor_index(idx)
-        if res:
+        if res == "minimized":
+            self.set_status(t("status_window_minimized", title=fg_title))
+        elif res == "restored":
+            self.set_status(t("status_window_restored", title=fg_title, index=idx))
+        elif res:
             self.set_status(t("status_moved_to_mon", index=idx))
         else:
             self.set_status(t("status_move_failed"))
@@ -1934,7 +2776,7 @@ class WindowRelocatorApp:
         if not monitors:
             return
         idx, cur_mon = get_cursor_monitor_index(monitors)
-        move_window_to_monitor(hwnd, cur_mon)
+        move_window_to_monitor(hwnd, cur_mon, auto_maximize=get_auto_maximize_relocated())
         self.set_status(t("status_moved_selected", title=item['values'][0][:30], index=idx + 1))
         self.root.after(300, self.refresh_all)
 
@@ -1942,10 +2784,39 @@ class WindowRelocatorApp:
         """Updates status bar text."""
         self.lbl_status_bar.config(text=text)
 
-    def _on_hotkey_triggered(self, hotkey_name):
+    def _on_hotkey_triggered(self, hotkey_name, result=None):
         """Callback when a global hotkey is pressed."""
-        self.root.after(0, lambda: self.set_status(t("status_hotkey_triggered", name=hotkey_name)))
+        fg = get_active_window()
+        fg_title = fg['title'][:30] if fg and fg.get('title') else ""
+        if result == "minimized":
+            msg = t("status_window_minimized", title=fg_title)
+        elif result == "restored":
+            msg = t("status_window_restored", title=fg_title, index=1)
+        elif result == "maximized":
+            msg = t("status_window_maximized", title=fg_title)
+        else:
+            msg = t("status_hotkey_triggered", name=hotkey_name)
+        self.root.after(0, lambda: self.set_status(msg))
         self.root.after(400, self.refresh_all)
+
+    def open_hotkeys_dialog(self):
+        """Opens modal dialog for customizing global hotkeys and behavior settings."""
+        def on_saved():
+            self.hotkey_mgr.reload_hotkeys()
+            self.retranslate_ui()
+            self.set_status(t("status_hotkeys_saved"))
+
+        HotkeySettingsDialog(self.root, on_save_callback=on_saved)
+
+    def toggle_app_visibility(self):
+        """Toggles main window visibility between active desktop and system tray."""
+        try:
+            if self.root.winfo_viewable() and self.root.state() != 'iconic':
+                self.minimize_to_tray()
+            else:
+                self.restore_from_tray()
+        except Exception:
+            self.restore_from_tray()
 
     def minimize_to_tray(self):
         """Minimizes and hides application to the system tray."""
@@ -1987,12 +2858,16 @@ class WindowRelocatorApp:
             )
             self.tray_menu.add_separator()
             self.tray_menu.add_command(
-                label=t("btn_move_to_cursor"),
+                label=t("btn_move_to_cursor", hotkey=get_hotkey_display("move_to_cursor")),
                 command=self.cmd_move_to_cursor
             )
             self.tray_menu.add_command(
-                label=t("btn_gather_offscreen"),
+                label=t("btn_gather_offscreen", hotkey=get_hotkey_display("gather_offscreen")),
                 command=self.cmd_gather
+            )
+            self.tray_menu.add_command(
+                label=t("tray_menu_hotkeys"),
+                command=self.open_hotkeys_dialog
             )
             self.tray_menu.add_separator()
             self.tray_menu.add_command(
