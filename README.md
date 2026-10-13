@@ -12,7 +12,7 @@
 It allows you to instantly pull any hidden or stranded window back to your active display using global hotkeys, a graphical user interface (GUI), or command-line execution scripts.
 
 <p align="center">
-  <img src="MonitorWindowRelocator.png" alt="Monitor Window Relocator Screenshot" width="700" />
+  <img src="MonitorWindowRelocator.png?v=1.5.0" alt="Monitor Window Relocator Screenshot" width="700" />
 </p>
 
 ---
